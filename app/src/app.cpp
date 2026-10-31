@@ -360,11 +360,11 @@ const std::uint32_t C_BG = rgb(14, 17, 26), C_PANEL = rgb(26, 31, 46), C_TXT = r
 
 enum Item { I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG, I_FULL, I_COUNT };
 
-// menu order; "Install full game" only exists while no Retro Rewind pack is installed
+// menu order; "Install Full Game" can only be used while no Retro Rewind pack is installed
 int menu_items(int *out)
 {
     int n = 0;
-    if (g_v.pack_missing) out[n++] = I_FULL;
+    out[n++] = I_FULL; // always listed; greyed out while a pack is installed
     for (int i : {I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG}) out[n++] = i;
     return n;
 }
@@ -464,7 +464,6 @@ void draw_main()
     gfx::fill(60, 150, 700, 520, C_PANEL);
     int order[I_COUNT];
     const int nmenu = menu_items(order);
-    if (g_sel == I_FULL && !g_v.pack_missing) g_sel = I_CHECK;
     const int pitch = nmenu > 6 ? 66 : 76, rowh = nmenu > 6 ? 58 : 64;
     for (int k = 0; k < nmenu; ++k)
     {
@@ -473,8 +472,9 @@ void draw_main()
         if (i == g_sel) { gfx::fill(70, y - 8, 680, rowh, C_SEL); gfx::frame(70, y - 8, 680, rowh, 2, C_ACC); }
         char buf[128];
         if (i == I_REGION) std::snprintf(buf, sizeof buf, "< %s >", region_name(v.region));
+        else if (i == I_FULL && !v.pack_missing) std::snprintf(buf, sizeof buf, "Install Full Game (installed)");
         else std::snprintf(buf, sizeof buf, "%s", item_label(i));
-        const bool dis = busy && i != I_LOG;
+        const bool dis = (busy && i != I_LOG) || (i == I_FULL && !v.pack_missing);
         if (i == I_REGION)
         {
             gfx::text(90, y - 4, "Region", 1, C_DIM);
@@ -534,7 +534,10 @@ void activate(int item)
     {
     case I_CHECK: start_job(J_CHECK); break;
     case I_INSTALL: start_job(J_INSTALL); break;
-    case I_FULL: if (g_v.pack_missing) start_job(J_FULL); break;
+    case I_FULL:
+        if (g_v.pack_missing) start_job(J_FULL);
+        else set_result(false, "Retro Rewind is already installed. Install Full Game is only for a missing pack; use Check/Install updates.");
+        break;
     case I_PATCH:
         if (!g_v.region) { set_result(true, "Choose a region first (Left/Right on the Region line). The patch is never started without it."); break; }
         start_job(J_PATCH);
@@ -694,7 +697,6 @@ void app_run()
         else if (p)
         {
             g_dirty = 1;
-            { int it[I_COUNT]; const int nm = menu_items(it); bool vis = false; for (int i = 0; i < nm; ++i) if (it[i] == g_sel) vis = true; if (!vis) g_sel = it[0]; }
             if (p & pad::up) g_sel = menu_move(g_sel, -1);
             if (p & pad::down) g_sel = menu_move(g_sel, +1);
             if (g_sel == I_REGION && (p & pad::left)) change_region(-1);

@@ -137,7 +137,7 @@ rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "" missing.zip 2>$T/err); echo "$
 
 echo "--- 13. builder install: folders created, only needed files kept, junk dropped"
 leftb() { ls -A $T/bld 2>/dev/null | tr '\n' ' '; }
-rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" updatedbuilder.zip 2>$T/err); echo "$OUT"
+rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" RetroRewindBuilder.zip 2>$T/err); echo "$OUT"
 echo "$OUT" | grep -q "BUILDER-OK present=1"; ok $? "builder installed from nothing (builder folder did not exist)"
 [ -f $T/bld/copy-files.sh ] && [ -f $T/bld/create-rr-pal.sh ] && [ -f $T/bld/extra/Boot/Loaders/EUR/main.dol ] && [ -f $T/bld/Patches/font.Font ] && [ -f $T/bld/extra/wiivcpatch.xml ]; ok $? "scripts, extra/ and Patches/ in place"
 [ ! -e $T/bld/copy-files.bat ] && [ ! -e $T/bld/ddel.exe ] && [ ! -e $T/bld/check_update.ps1 ] && [ ! -e $T/bld/README.txt ] && [ ! -e $T/bld/create-all.sh ] && [ ! -e $T/bld/create-rr-pal.bat ]; ok $? "unneeded files not written"
@@ -146,8 +146,8 @@ rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" builder_incomplete.zip 2>$T/e
 [ ! -e $T/bld/copy-files.sh ] && [ ! -e $T/bld/extra ]; ok $? "nothing left behind after refusal"
 rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" builder_evil.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "unsafe builder archive refused"
 [ ! -e $T/escape.sh ]; ok $? "nothing escaped the builder folder"
-rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "truncate:updatedbuilder.zip" updatedbuilder.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "truncated builder download refused"
+rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "truncate:RetroRewindBuilder.zip" RetroRewindBuilder.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "truncated builder download refused"
 rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" missing.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "HTTP 404 reported as failure"
-mkdir -p $T/bld; echo MINE > $T/bld/notes.txt; $CLI builder $T/bld $T/srv "" updatedbuilder.zip >/dev/null 2>&1; [ "$(cat $T/bld/notes.txt)" = MINE ]; ok $? "user's own files in the builder folder are kept"
+mkdir -p $T/bld; echo MINE > $T/bld/notes.txt; $CLI builder $T/bld $T/srv "" RetroRewindBuilder.zip >/dev/null 2>&1; [ "$(cat $T/bld/notes.txt)" = MINE ]; ok $? "user's own files in the builder folder are kept"
 
 echo; echo "passed=$pass failed=$fail"; [ $fail = 0 ]

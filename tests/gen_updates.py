@@ -40,7 +40,7 @@ bsc = {"copy-files.sh": b"#!/bin/sh\n", "create-rr-usa.sh": b"u", "create-rr-pal
        "extra/Boot/Loaders/KOR/": b"", "extra/Boot/Strap/Strap.szs": b"S" * 500, "extra/wiivcpatch.xml": b"<x/>", "extra/thp/banana.thp": b"T" * 800,
        "Patches/font.Font": b"F" * 300}
 junk = {"copy-files.bat": b"@echo", "ddel.exe": b"MZ" * 100, "check_update.ps1": b"x", "README.txt": b"r", "create-all.sh": b"a", "set-image-type-WBFS.sh": b"w", "create-rr-pal.bat": b"b"}
-zf("updatedbuilder.zip", {**bsc, **junk})
+zf("RetroRewindBuilder.zip", {**bsc, **junk})
 zf("builder_incomplete.zip", {"copy-files.sh": b"x", "extra/a": b"y", **junk})
 zf("builder_evil.zip", {**bsc, "extra/../../escape.sh": b"pwn"})
 H = "https://cdn.update.rwfc.net/RetroRewind/zip/"

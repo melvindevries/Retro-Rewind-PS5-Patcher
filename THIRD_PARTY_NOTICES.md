@@ -132,5 +132,14 @@ No proprietary runtime module, encryption key, or game file is included.
 - Native app toolchain/runtime: ps5-native-app-boilerplate by BlackBearReloaded (GPL-3.0-or-later) and ps5-payload-sdk stubs; see their notices.
 
 
-## Downloaded at runtime (not shipped)
-The app can download, on the user's request, the Retro Rewind pack from update.rwfc.net and the ISO builder scripts from github.com/Retro-Rewind-Team/iso-patcher (GPL-licensed). Neither is part of this repository or of the release ZIP.
+## Retro Rewind builder tools (builder/RetroRewindBuilder.zip)
+Redistributed unmodified, as a subset, from https://github.com/Retro-Rewind-Team/iso-patcher (`updatedbuilder.zip`, commit 8258c71),
+GPL-3.0. Authors: Wiimm (original scripts, built on Wiimm's ISO Tools), Kote (Kote3767) and the Retro Rewind Team (current scripts,
+loaders, patches). Full credit, source and licence text: builder/NOTICE.md and builder/LICENSE.
+
+## Downloaded at runtime (not part of the release ZIP)
+On the user's request the app downloads the Retro Rewind pack from update.rwfc.net (the Retro Rewind Team's work) and the builder
+tools from this repository. The pack itself is not stored in this repository.
+
+## App icon
+`app/sce_sys/icon0.png` is artwork supplied by the project owner for this app. Mario Kart Wii and Retro Rewind artwork remain the property of their owners.

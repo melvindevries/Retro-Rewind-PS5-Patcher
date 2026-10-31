@@ -652,7 +652,7 @@ int rr_builder_present(const char *d)
 
 static int builder_url_ok(const char *url)
 {
-    static const char *const ok[] = {"https://github.com/Retro-Rewind-Team/", "https://raw.githubusercontent.com/Retro-Rewind-Team/", NULL};
+    static const char *const ok[] = {"https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/", "https://raw.githubusercontent.com/melvindevries/Retro-Rewind-PS5-Patcher/", NULL};
     if (strstr(url, "..") || strchr(url, '@')) return 0;
     for (int i = 0; ok[i]; i++) if (!strncmp(url, ok[i], strlen(ok[i]))) return 1;
     return 0;
