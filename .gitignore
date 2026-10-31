@@ -1,0 +1,8 @@
+/build/
+/dist/
+/.deps/
+/ref-src/
+*.o
+*.zip
+*.wbfs
+*.iso
