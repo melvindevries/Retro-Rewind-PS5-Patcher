@@ -131,3 +131,6 @@ No proprietary runtime module, encryption key, or game file is included.
 - Wiimm's ISO Tools (WIT) is NOT linked or shipped. It was built on a PC only as a reference: the engine's output is compared byte for byte against real WIT output in tests/.
 - Native app toolchain/runtime: ps5-native-app-boilerplate by BlackBearReloaded (GPL-3.0-or-later) and ps5-payload-sdk stubs; see their notices.
 
+
+## Downloaded at runtime (not shipped)
+The app can download, on the user's request, the Retro Rewind pack from update.rwfc.net and the ISO builder scripts from github.com/Retro-Rewind-Team/iso-patcher (GPL-licensed). Neither is part of this repository or of the release ZIP.

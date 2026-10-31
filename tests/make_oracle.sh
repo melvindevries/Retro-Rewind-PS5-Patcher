@@ -14,6 +14,6 @@ mkdir -p "$work/oracle-$region"
 cp -r "$builder"/. "$work/oracle-$region/"
 rm -f "$work"/oracle-$region/*.bat "$work/oracle-$region/ddel.exe"
 python3 "$here/fixtures/gen_pack.py" "$work/oracle-$region/copy-files.sh" "$work/oracle-$region" "$version" >/dev/null
-( cd "$work/oracle-$region" && sh "$script" > run.log 2>&1 )
+( cd "$work/oracle-$region" && bash "$script" > run.log 2>&1 )
 if grep -q '^cp:' "$work/oracle-$region/run.log"; then echo "oracle cp errors:"; grep '^cp:' "$work/oracle-$region/run.log" | head; exit 1; fi
 ls "$work/oracle-$region/new-image/"

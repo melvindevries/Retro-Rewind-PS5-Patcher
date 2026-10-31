@@ -251,6 +251,14 @@ int do_full(rr_ctx &c)
     int r = sce_http_start();
     if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
     if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
+    // builder files first (copy-files.sh, create-rr-*.sh, extra/, Patches/), only when they are not there yet
+    if (!rr_builder_present(kBuilder))
+    {
+        add_log(RR_LOG_INFO, "step 1/2: ISO builder files");
+        r = rr_install_builder(&c, &g_http, kBuilder, RR_BUILDER_URL);
+        if (r) return r;
+    }
+    add_log(RR_LOG_INFO, "step 2/2: Retro Rewind pack");
     return rr_install_full(&c, &g_http, kPack, RR_FULL_URL);
 }
 
@@ -281,7 +289,7 @@ void *worker(void *arg)
             rr_ctx q;
             make_ctx(q);
             (void)rr_read_installed_version(&q, kPack, v);
-            set_result(false, "Retro Rewind %s installed in %s/RetroRewind6. Next: put your Mario Kart Wii .wbfs in the base folder, then choose a region and patch.", v[0] ? v : "?", kPack);
+            set_result(false, "Retro Rewind %s installed in %s/RetroRewind6. The builder files are in place too. Next: put your Mario Kart Wii .wbfs in the base folder, then choose a region and patch.", v[0] ? v : "?", kPack);
         }
         break;
     case J_PATCH:

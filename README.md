@@ -16,7 +16,7 @@ A native PS5 app. It checks the official [Retro Rewind](https://rwfc.net) update
 pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 
 ## Features
-- **Install Full Game:** no Retro Rewind pack on the console yet? One button downloads the complete official pack, creates every folder it needs and puts the files in the right place. The button only shows while no pack is installed.
+- **Install Full Game:** no Retro Rewind pack on the console yet? One button first installs the official Retro Rewind ISO builder files (only the ones the patcher needs), then downloads the complete pack, creates every folder and puts everything in the right place. The button only shows while no pack is installed.
 - **Updates:** checks the official server and installs only the newest update, merged into your pack (files replaced or added, nothing else touched).
 - **Patching:** builds `RMCETO` (USA), `RMCPTO` (PAL) or `RMCJTO` (Japan) after you pick the region.
 - **Safe:** your original image is only ever read. A failed patch never overwrites a good output (temporary file, full verify, then atomic rename).
@@ -28,7 +28,7 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
 ## Requirements
 - A jailbroken PS5 running [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) and OnionHEN.
 - Your own legally obtained Mario Kart Wii image as a `.wbfs` file.
-- The official Retro Rewind ISO Builder files and your Retro Rewind pack (`RetroRewind6`) from [rwfc.net](https://rwfc.net).
+- Nothing else to download: the Retro Rewind pack and the ISO builder files are installed by the app (**Install Full Game**). If you already have your own copies you can place them yourself, see below.
 - An FTP client (or another way to copy files to the console) and an internet connection for updates.
 - Free internal space of roughly one game image plus the update ZIP.
 
@@ -52,12 +52,12 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
    |---|---|
    | Your Mario Kart Wii image (one `.wbfs`, any name) | `/data/porpoise/rewind/base/` |
    | Retro Rewind pack (only if you already have one; otherwise the app installs it for you with **Install Full Game**) | `/data/porpoise/rewind/pack/RetroRewind6/` |
-   | Retro Rewind ISO Builder files (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`, ...) | `/data/porpoise/rewind/builder/` |
+   | Retro Rewind ISO Builder files (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`), only if you have your own; otherwise **Install Full Game** installs them | `/data/porpoise/rewind/builder/` |
 
 7. **Start the app.** If the Access row does not show OK, press Square to retry.
 
 ## Usage
-1. **No Retro Rewind pack yet?** Choose **Install Full Game**. The app downloads the complete pack from `update.rwfc.net`, creates the folders and installs it. The button disappears once the pack is installed.
+1. **No Retro Rewind pack yet?** Choose **Install Full Game**. The app downloads the official ISO builder files (from the Retro Rewind Team's `iso-patcher` repository on GitHub, only if they are missing) and the complete pack from `update.rwfc.net`, creates the folders and installs everything. The button disappears once the pack is installed.
 2. **Already have a pack?** **Check for Retro Rewind updates**, then **Install updates**.
 3. Choose your **region** with Left/Right (USA, PAL or Japan). It must match your base image.
 4. **Patch game.** The result is `RMCETO.wbfs` (USA), `RMCPTO.wbfs` (PAL) or `RMCJTO.wbfs` (Japan) in `/data/porpoise/games/`.
@@ -87,7 +87,7 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
 ## Troubleshooting
 - **Cannot open the base folder / no game found.** The app is not allowed in OnionHEN yet (step 4), or the folder is empty or has no `.wbfs`.
 - **"Cannot create working folders".** Folder permissions (step 5).
-- **"Cannot read builder script".** The builder files are missing from `/data/porpoise/rewind/builder/` (step 6).
+- **"Cannot read builder script".** The builder files are missing from `/data/porpoise/rewind/builder/`. Delete the Retro Rewind pack folder and use **Install Full Game**, or copy the builder files there yourself (step 6).
 - **Image not recognised.** Rename it `RMCE01.wbfs`, `RMCP01.wbfs` or `RMCJ01.wbfs`.
 - **"Retro Rewind is not installed yet" when checking for updates.** Use **Install Full Game** first.
 - **Install Full Game fails.** Check the Access row and free space (the full pack is large), then press Options for the log.
@@ -97,7 +97,7 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
 - Only the newest update archive is installed. The server publishes one archive per release containing that release's changes, so if your pack is several releases behind, files that only older archives carried can be missing. In that case reinstall the pack from the official full download first.
 - Delete lists inside update archives are not applied (merge only).
 - The app needs the OnionHEN allowlist entry; it cannot work in a plain sandbox.
-- The app does not download your game or the ISO Builder files (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`). It only downloads Retro Rewind archives from `update.rwfc.net`.
+- The app never downloads your game. It downloads only the Retro Rewind archives from `update.rwfc.net` and the ISO builder archive from the Retro Rewind Team's GitHub repository.
 - Install Full Game is offered only while no pack is installed. To reinstall, delete `/data/porpoise/rewind/pack/RetroRewind6/` first.
 
 ## Build from source
@@ -117,7 +117,7 @@ Always copy the address from this page. Never send funds because of a message or
 ## Credits
 Built on [ps5-native-app-boilerplate](https://github.com/BlackBearReloaded/ps5-native-app-boilerplate) and the ps5-payload-sdk,
 with [miniz](https://github.com/richgel999/miniz) and the DejaVu font. [Wiimm's ISO Tools](https://wit.wiimm.de) was used only as a
-test reference on a PC. [Retro Rewind](https://rwfc.net) is the work of its own team. Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+test reference on a PC. [Retro Rewind](https://rwfc.net) and its [ISO builder](https://github.com/Retro-Rewind-Team/iso-patcher) are the work of the Retro Rewind Team; the app downloads them at your request and does not ship them. Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Legal
 **Important:** this project ships no game data, no Sony files and no Retro Rewind files. You must own Mario Kart Wii and supply the image yourself.

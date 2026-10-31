@@ -184,7 +184,7 @@ static int read_script_cfg(rr_ctx *c, const char *builder_dir, char region, scri
             free(copy);
         }
     }
-    if (!ok || strcmp(sc->src_id, rr_region_src_id(region)) || strcmp(sc->src_type, region_type(region)) || strcmp(sc->dest_id, rr_region_dest_id(region)) ||
+    if (!ok || strcmp(sc->src_id, rr_region_src_id(region)) || (strcmp(sc->src_type, region_type(region)) && !(region == 'P' && !strcmp(sc->src_type, "PAL"))) || strcmp(sc->dest_id, rr_region_dest_id(region)) ||
         strlen(sc->boot) != 4 || strlen(sc->ticket) != 4 || strlen(sc->tmd) != 4 || memcmp(sc->boot, sc->src_id, 4) || strlen(sc->dest_name) > 63) {
         free(text);
         return rr_fail(c, RR_E_UNSUPPORTED, "builder script %s does not have the expected layout", region_script(region));
@@ -401,7 +401,7 @@ int rr_patch_run(rr_ctx *c, const rr_patch_cfg *cfg_in, int force, rr_patch_resu
     if ((r = rr_vt_load_base(c, &t, &p, &f))) goto out;
 
     char v1[64], v2[64], v3[64], v4[128];
-    snprintf(v1, sizeof v1, "SRC_ID=%s", sc.src_id); snprintf(v2, sizeof v2, "SRC_TYPE=%s", sc.src_type);
+    snprintf(v1, sizeof v1, "SRC_ID=%s", sc.src_id); snprintf(v2, sizeof v2, "SRC_TYPE=%s", region_type(cfg->region)); /* the official builder says PAL for the loader folder but ships it as EUR */
     snprintf(v3, sizeof v3, "DEST_ID=%s", sc.dest_id); snprintf(v4, sizeof v4, "DEST_NAME=%s", sc.dest_name);
     const char *vars[] = {v1, v2, v3, v4, NULL};
     rr_script_roots roots = {cfg->builder_dir, cfg->pack_dir};

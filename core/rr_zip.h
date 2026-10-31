@@ -22,6 +22,9 @@ int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, u
  * into stage_root/RetroRewind6/ whether the archive stores them as "RetroRewind6/...", "<wrapper>/RetroRewind6/..."
  * or bare at the archive root. Members outside the pack (e.g. other top-level folders) are skipped. */
 int rr_zip_extract_full(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path);
+/* ISO Builder archive (updatedbuilder.zip): extracts only copy-files.sh, create-rr-{usa,pal,jpn}.sh, extra/ and Patches/
+ * into stage_root/<same path>; everything else in the archive (.bat, .exe, .ps1, READMEs, ...) is skipped. */
+int rr_zip_extract_builder(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path);
 int rr_zip_extract(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out);
 
 #ifdef __cplusplus

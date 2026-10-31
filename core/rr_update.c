@@ -295,6 +295,27 @@ static int load_list(rr_ctx *c, const char *list_path, strvec *files, strvec *di
     return r;
 }
 
+static int load_names(rr_ctx *c, const char *list_path, strvec *files, strvec *dirs)
+{
+    char *txt; size_t len;
+    if (rr_read_text_file(list_path, &txt, &len, 64u << 20)) return rr_fail(c, RR_E_IO, "cannot read the extraction list");
+    for (char *line = strtok(txt, "\n"); line; line = strtok(NULL, "\n")) {
+        if (line[0] != 'F' && line[0] != 'D') continue;
+        char rel[PATH_MAX];
+        snprintf(rel, sizeof rel, "%s", line + 2);
+        size_t l = strlen(rel);
+        while (l && rel[l - 1] == '/') rel[--l] = 0;
+        if (!l) continue;
+        sv_add(line[0] == 'F' ? files : dirs, rel);
+    }
+    free(txt);
+    qsort(files->v, files->n, sizeof *files->v, sv_cmp);
+    size_t w = files->n ? 1 : 0;
+    for (size_t i = 1; i < files->n; i++) { if (strcmp(files->v[i], files->v[w - 1])) files->v[w++] = files->v[i]; else free(files->v[i]); }
+    files->n = w;
+    return 0;
+}
+
 /* Removes the named files under root and then the folders that held them (deepest first, only if empty).
  * Needs no folder listing, so it works even where listing a folder does not. */
 static void rm_named(const char *root, char *const *names, const char *kinds, size_t n, char want)
@@ -303,6 +324,7 @@ static void rm_named(const char *root, char *const *names, const char *kinds, si
         if (kinds && kinds[i] != want) continue;
         char path[PATH_MAX];
         snprintf(path, sizeof path, "%s/%s", root, names[i]);
+        for (char *q = path; *q; ) { if (q[0] == '/' && q[1] == '/') memmove(q, q + 1, strlen(q)); else q++; } /* "dir//.d" from listed folder entries */
         unlink(path);
         for (char *sl = strrchr(path, '/'); sl && (size_t)(sl - path) > strlen(root); sl = strrchr(path, '/')) { *sl = 0; if (rmdir(path) != 0) break; }
     }
@@ -617,6 +639,100 @@ int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const cha
         char v[32];
         if (rr_read_installed_version(c, pack_dir, v) || strcmp(v, ver)) r = rr_fail(c, RR_E_STATE, "version file did not read back after the install");
         else rr_logf(c, RR_LOG_INFO, "Retro Rewind %s installed", v);
+    }
+    return r;
+}
+
+int rr_builder_present(const char *d)
+{
+    static const char *const f[] = {"copy-files.sh", "create-rr-usa.sh", "create-rr-pal.sh", "create-rr-jpn.sh", NULL};
+    for (int i = 0; f[i]; i++) { char p[PATH_MAX]; snprintf(p, sizeof p, "%s/%s", d, f[i]); if (rr_path_kind(p) != 1) return 0; }
+    return 1;
+}
+
+static int builder_url_ok(const char *url)
+{
+    static const char *const ok[] = {"https://github.com/Retro-Rewind-Team/", "https://raw.githubusercontent.com/Retro-Rewind-Team/", NULL};
+    if (strstr(url, "..") || strchr(url, '@')) return 0;
+    for (int i = 0; ok[i]; i++) if (!strncmp(url, ok[i], strlen(ok[i]))) return 1;
+    return 0;
+}
+
+int rr_install_builder(rr_ctx *c, const rr_http *h, const char *builder_dir, const char *url)
+{
+    if (!builder_url_ok(url)) return rr_fail(c, RR_E_UNSAFE, "refusing to download the builder from %s", url);
+    int r = rr_mkdir_p(builder_dir);
+    if (r) return rr_fail(c, RR_E_IO, "cannot create %s: %s (the app has no write permission there; see the Access row)", builder_dir, strerror(errno));
+    char stage[PATH_MAX], dl[PATH_MAX], list[PATH_MAX], zp[PATH_MAX], part[PATH_MAX];
+    snprintf(stage, sizeof stage, "%s/.rb-stage", builder_dir);
+    snprintf(dl, sizeof dl, "%s/.rb-dl", builder_dir);
+    snprintf(list, sizeof list, "%s/.rb-stage.list", builder_dir);
+    snprintf(zp, sizeof zp, "%s/builder.zip", dl);
+    snprintf(part, sizeof part, "%s.part", zp);
+    unlink(list);
+    if (fresh_dir(c, stage) || fresh_dir(c, dl)) return rr_fail(c, RR_E_IO, "cannot create working folders in %s: %s (the app has no write permission there; see the Access row)", builder_dir, strerror(errno));
+    strvec files = {0}, dirs = {0}, created = {0};
+    do {
+        uint8_t *mem = NULL; size_t len = 0; int status = 0; uint64_t exp = 0;
+        rr_logf(c, RR_LOG_INFO, "Downloading the Retro Rewind ISO builder files: %s", url);
+        r = h->get(h->user, c, url, part, &mem, &len, 0, &exp, &status);
+        free(mem);
+        if (r) break;
+        if (status != 200) { r = rr_fail(c, RR_E_NET, "download of the builder files failed: HTTP %d", status); break; }
+        uint64_t sz = 0;
+        if (rr_file_size(part, &sz) || sz != len || (exp && exp != sz) || sz < 22) { r = rr_fail(c, RR_E_CORRUPT, "download of the builder files is incomplete (%llu of %llu bytes)", (unsigned long long)sz, (unsigned long long)exp); break; }
+        if (rename(part, zp)) { r = rr_fail(c, RR_E_IO, "cannot finish download"); break; }
+        uint64_t freeb = rr_free_space(builder_dir);
+        uint64_t maxt = freeb > (sz + (128ull << 20)) ? freeb - sz - (64ull << 20) : (64ull << 20);
+        if (!freeb) maxt = 2ull << 30;
+        uint64_t total = 0; size_t nfiles = 0;
+        if ((r = rr_zip_extract_builder(c, zp, stage, maxt, &total, &nfiles, list))) break;
+        unlink(zp);
+        if ((r = load_names(c, list, &files, &dirs))) break;
+        /* the archive must really be the builder */
+        int need = 0;
+        for (size_t i = 0; i < files.n; i++) if (!strcmp(files.v[i], "copy-files.sh") || !strcmp(files.v[i], "create-rr-usa.sh") || !strcmp(files.v[i], "create-rr-pal.sh") || !strcmp(files.v[i], "create-rr-jpn.sh")) need++;
+        if (need != 4) { r = rr_fail(c, RR_E_FORMAT, "the builder archive does not contain copy-files.sh and the three create-rr scripts"); break; }
+        rr_logf(c, RR_LOG_INFO, "Builder archive verified: %zu files kept, %llu KiB", files.n, (unsigned long long)(total >> 10));
+        if (rr_cancelled(c)) { r = rr_fail(c, RR_E_CANCEL, "cancelled"); break; }
+        /* place the files; anything that did not exist before is remembered so a failure can remove it again */
+        for (size_t i = 0; i < dirs.n && !r; i++) { char d[PATH_MAX]; snprintf(d, sizeof d, "%s/%s", builder_dir, dirs.v[i]); if (rr_mkdir_p(d)) r = rr_fail(c, RR_E_IO, "cannot create %s: %s", d, strerror(errno)); }
+        for (size_t i = 0; i < files.n && !r; i++) {
+            char src[PATH_MAX], dest[PATH_MAX];
+            snprintf(src, sizeof src, "%s/%s", stage, files.v[i]);
+            snprintf(dest, sizeof dest, "%s/%s", builder_dir, files.v[i]);
+            if (!rel_safe(files.v[i])) { r = rr_fail(c, RR_E_UNSAFE, "unsafe path in the builder archive"); break; }
+            rr_fileinfo st;
+            int existed = rr_stat(dest, 0, &st) == 0;
+            if (existed && st.kind != 1) { r = rr_fail(c, RR_E_STATE, "%s exists but is not a normal file", dest); break; }
+            char *sl = strrchr(dest, '/'); *sl = 0; int mr = rr_mkdir_p(dest); *sl = '/';
+            if (mr) { r = rr_fail(c, RR_E_IO, "cannot create folder for %s", dest); break; }
+            if (rename(src, dest)) { r = rr_fail(c, RR_E_IO, "cannot install %s: %s", dest, strerror(errno)); break; }
+            if (!existed) sv_add(&created, files.v[i]);
+        }
+    } while (0);
+    if (r) for (size_t i = 0; i < created.n; i++) { char d[PATH_MAX]; snprintf(d, sizeof d, "%s/%s", builder_dir, created.v[i]); unlink(d); }
+    {   /* clean up by name as well, for systems where a folder cannot be listed */
+        char *txt; size_t len;
+        for (int pass = 0; pass < 2; pass++) /* second pass removes folders that only became empty during the first */
+        if (rr_path_kind(list) == 1 && rr_read_text_file(list, &txt, &len, 64u << 20) == 0) {
+            for (char *line = strtok(txt, "\n"); line; line = strtok(NULL, "\n")) {
+                if (line[0] != 'F' && line[0] != 'D') continue;
+                char nmbuf[PATH_MAX];
+                snprintf(nmbuf, sizeof nmbuf, "%s%s", line + 2, line[0] == 'D' ? "/.d" : "");
+                char *nm[1] = { nmbuf };
+                rm_named(stage, nm, NULL, 1, 0);
+            }
+            free(txt);
+        }
+        unlink(zp); unlink(part);
+        rmdir(dl); rmdir(stage); unlink(list);
+    }
+    rr_remove_tree(stage); rr_remove_tree(dl);
+    sv_free(&files); sv_free(&dirs); sv_free(&created);
+    if (!r) {
+        if (!rr_builder_present(builder_dir)) r = rr_fail(c, RR_E_STATE, "the builder files are not all in place after the install");
+        else rr_logf(c, RR_LOG_INFO, "ISO builder files installed in %s", builder_dir);
     }
     return r;
 }

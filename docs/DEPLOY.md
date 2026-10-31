@@ -4,8 +4,8 @@
    app then appears on the home screen.
 3. Create and fill (the app creates the empty folders on first start):
    - `/data/porpoise/rewind/base/` - exactly one `.wbfs` of your own Mario Kart Wii (RMCE01 / RMCP01 / RMCJ01)
-   - `/data/porpoise/rewind/pack/RetroRewind6/` - your existing pack incl. `version.txt` (the app can update it). Without a pack, use **Install Full Game** in the app
-   - `/data/porpoise/rewind/builder/` - contents of the Retro Rewind ISO Builder (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`, ...)
+   - `/data/porpoise/rewind/pack/RetroRewind6/` - your existing pack incl. `version.txt` (the app can update it). Without a pack, use **Install Full Game** in the app; it also installs the builder files
+   - `/data/porpoise/rewind/builder/` - (installed by Install Full Game if missing) contents of the Retro Rewind ISO Builder (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`, ...)
 4. Launch, Check updates, Install updates, choose region, Patch game. Output appears in `/data/porpoise/games/`.
 Needs free space of roughly the size of the output plus the update ZIPs. The app is network-dependent only for updates.
 

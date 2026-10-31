@@ -54,6 +54,12 @@ int main(int argc, char **argv)
     mock_t m = {argv[3], argc > 4 ? argv[4] : NULL, 0};
     rr_http h = {mock_get, &m};
     if (!strcmp(argv[1], "recover")) { int r = rr_update_recover(&c, argv[2]); printf(r ? "FAILED: %s\n" : "RECOVERED\n", c.err); return r != 0; }
+    if (!strcmp(argv[1], "builder")) { /* argv[5] = archive name on the mock server */
+        char url[600]; snprintf(url, sizeof url, "https://github.com/Retro-Rewind-Team/iso-patcher/raw/main/%s", argc > 5 ? argv[5] : "updatedbuilder.zip");
+        int r = rr_install_builder(&c, &h, argv[2], url);
+        if (r) { printf("FAILED: %s\n", c.err); return 1; }
+        printf("BUILDER-OK present=%d gets=%d\n", rr_builder_present(argv[2]), m.gets); return 0;
+    }
     if (!strcmp(argv[1], "full")) { /* full RR_FULL_URL-style install; argv[5] = archive file name on the mock server */
         char url[600]; snprintf(url, sizeof url, "https://update.rwfc.net/RetroRewind/zip/%s", argc > 5 ? argv[5] : "RetroRewind.zip");
         int r = rr_install_full(&c, &h, argv[2], url);

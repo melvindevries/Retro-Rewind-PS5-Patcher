@@ -53,6 +53,12 @@ static const char *fullmap(const fullmap_t *m, const char *name, char *buf, size
 {
     static const char rr[] = "RetroRewind6";
     if (!strncmp(name, "__MACOSX", 8) || strstr(name, ".DS_Store")) return NULL;
+    if (m->mode == 3) { /* ISO builder archive: only what the patch engine reads */
+        static const char *const keep[] = {"copy-files.sh", "create-rr-usa.sh", "create-rr-pal.sh", "create-rr-jpn.sh", NULL};
+        for (int i = 0; keep[i]; i++) if (!strcmp(name, keep[i])) return name;
+        if (!strncmp(name, "extra/", 6) || !strcmp(name, "extra") || !strncmp(name, "Patches/", 8) || !strcmp(name, "Patches")) return name;
+        return NULL;
+    }
     if (m->mode == 0) return name;
     if (m->mode == 1) {
         size_t sl = strlen(m->strip);
@@ -123,6 +129,11 @@ int rr_zip_extract_full(rr_ctx *c, const char *zip_path, const char *stage_root,
     return extract_impl(c, zip_path, stage_root, max_total, total_out, files_out, list_path, 1);
 }
 
+int rr_zip_extract_builder(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path)
+{
+    return extract_impl(c, zip_path, stage_root, max_total, total_out, files_out, list_path, 2);
+}
+
 static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path, int full)
 {
     int r = 0;
@@ -142,7 +153,8 @@ static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root,
     mz_uint n = mz_zip_reader_get_num_files(&za);
     if (n == 0 || n > 50000) { r = rr_fail(c, RR_E_CORRUPT, "ZIP has %u entries", (unsigned)n); goto out; }
     /* full archives: decide the layout first (rooted, wrapped in one folder, or bare) */
-    if (full) {
+    if (full == 2) fm.mode = 3;
+    if (full == 1) {
         fm.mode = 2;
         for (mz_uint i = 0; i < n && fm.mode == 2; i++) {
             mz_zip_archive_file_stat fs;
