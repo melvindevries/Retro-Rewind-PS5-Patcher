@@ -6,3 +6,4 @@
 *.zip
 *.wbfs
 *.iso
+!/builder/RetroRewindBuilder.zip
