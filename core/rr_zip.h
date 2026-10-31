@@ -18,6 +18,10 @@ int rr_zip_name_ok(const char *name);
 /* Same, but appends "F <name>" / "D <name>" lines for everything extracted to list_path, so callers can
  * work from the archive's own file list instead of having to list the folder. */
 int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path);
+/* Full-pack archive (RetroRewind.zip): every member is safety-checked; members belonging to the pack are extracted
+ * into stage_root/RetroRewind6/ whether the archive stores them as "RetroRewind6/...", "<wrapper>/RetroRewind6/..."
+ * or bare at the archive root. Members outside the pack (e.g. other top-level folders) are skipped. */
+int rr_zip_extract_full(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path);
 int rr_zip_extract(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out);
 
 #ifdef __cplusplus

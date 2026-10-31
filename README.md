@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/img/banner.png" alt="MKWII Retro Rewind Patcher" width="100%"></p>
 
 <p align="center">
-  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/melvindevries/retro-rewind-ps5-patcher?label=release" alt="release"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/melvindevries/Retro-Rewind-PS5-Patcher?label=release" alt="release"></a>
   <img src="https://img.shields.io/badge/platform-PS5%20homebrew-003791" alt="PS5 homebrew">
   <a href="../../actions/workflows/build.yml"><img src="../../actions/workflows/build.yml/badge.svg" alt="build"></a>
   <img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="license">
@@ -16,6 +16,7 @@ A native PS5 app. It checks the official [Retro Rewind](https://rwfc.net) update
 pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 
 ## Features
+- **Install Full Game:** no Retro Rewind pack on the console yet? One button downloads the complete official pack, creates every folder it needs and puts the files in the right place. The button only shows while no pack is installed.
 - **Updates:** checks the official server and installs only the newest update, merged into your pack (files replaced or added, nothing else touched).
 - **Patching:** builds `RMCETO` (USA), `RMCPTO` (PAL) or `RMCJTO` (Japan) after you pick the region.
 - **Safe:** your original image is only ever read. A failed patch never overwrites a good output (temporary file, full verify, then atomic rename).
@@ -50,16 +51,17 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
    | What | Where |
    |---|---|
    | Your Mario Kart Wii image (one `.wbfs`, any name) | `/data/porpoise/rewind/base/` |
-   | Retro Rewind pack, containing `version.txt` | `/data/porpoise/rewind/pack/RetroRewind6/` |
+   | Retro Rewind pack (only if you already have one; otherwise the app installs it for you with **Install Full Game**) | `/data/porpoise/rewind/pack/RetroRewind6/` |
    | Retro Rewind ISO Builder files (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`, ...) | `/data/porpoise/rewind/builder/` |
 
 7. **Start the app.** If the Access row does not show OK, press Square to retry.
 
 ## Usage
-1. **Check for Retro Rewind updates**, then **Install updates**.
-2. Choose your **region** with Left/Right (USA, PAL or Japan). It must match your base image.
-3. **Patch game.** The result is `RMCETO.wbfs` (USA), `RMCPTO.wbfs` (PAL) or `RMCJTO.wbfs` (Japan) in `/data/porpoise/games/`.
-4. Optionally **Verify output**, then start the game from your game launcher.
+1. **No Retro Rewind pack yet?** Choose **Install Full Game**. The app downloads the complete pack from `update.rwfc.net`, creates the folders and installs it. The button disappears once the pack is installed.
+2. **Already have a pack?** **Check for Retro Rewind updates**, then **Install updates**.
+3. Choose your **region** with Left/Right (USA, PAL or Japan). It must match your base image.
+4. **Patch game.** The result is `RMCETO.wbfs` (USA), `RMCPTO.wbfs` (PAL) or `RMCJTO.wbfs` (Japan) in `/data/porpoise/games/`.
+5. Optionally **Verify output**, then start the game from your game launcher.
 
 ## Controls
 | Button | Action |
@@ -76,7 +78,7 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
 |---|---|
 | `/data/homebrew/PPSA97531/` | The app |
 | `/data/porpoise/rewind/base/` | Your base game image |
-| `/data/porpoise/rewind/pack/RetroRewind6/` | Retro Rewind pack (`version.txt` inside) |
+| `/data/porpoise/rewind/pack/RetroRewind6/` | Retro Rewind pack (`version.txt` inside); created by Install Full Game |
 | `/data/porpoise/rewind/builder/` | Builder scripts and assets |
 | `/data/porpoise/games/` | Output (`RMCETO` / `RMCPTO` / `RMCJTO.wbfs`) |
 | `/data/porpoise/rewind/state/` | Region choice and patch fingerprint |
@@ -87,13 +89,16 @@ pack, and builds a patched Mario Kart Wii `.wbfs` from **your own** copy of the 
 - **"Cannot create working folders".** Folder permissions (step 5).
 - **"Cannot read builder script".** The builder files are missing from `/data/porpoise/rewind/builder/` (step 6).
 - **Image not recognised.** Rename it `RMCE01.wbfs`, `RMCP01.wbfs` or `RMCJ01.wbfs`.
+- **"Retro Rewind is not installed yet" when checking for updates.** Use **Install Full Game** first.
+- **Install Full Game fails.** Check the Access row and free space (the full pack is large), then press Options for the log.
 - **Anything else.** Press Options for the log, or read `/data/porpoise/rewind/logs/porpoise.log`, and include it in an issue.
 
 ## Known limitations
 - Only the newest update archive is installed. The server publishes one archive per release containing that release's changes, so if your pack is several releases behind, files that only older archives carried can be missing. In that case reinstall the pack from the official full download first.
 - Delete lists inside update archives are not applied (merge only).
 - The app needs the OnionHEN allowlist entry; it cannot work in a plain sandbox.
-- The app does not download the game or the builder files. Only the Retro Rewind update ZIP from `update.rwfc.net`.
+- The app does not download your game or the ISO Builder files (`copy-files.sh`, `create-rr-*.sh`, `extra/`, `Patches/`). It only downloads Retro Rewind archives from `update.rwfc.net`.
+- Install Full Game is offered only while no pack is installed. To reinstall, delete `/data/porpoise/rewind/pack/RetroRewind6/` first.
 
 ## Build from source
 See [docs/BUILD.md](docs/BUILD.md). Deploy details: [docs/DEPLOY.md](docs/DEPLOY.md). Host tests: `tests/run_all.sh`.

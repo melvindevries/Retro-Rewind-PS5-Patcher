@@ -533,6 +533,94 @@ static int apply_version(rr_ctx *c, const rr_http *h, const paths_t *p, const rr
     return r;
 }
 
+int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const char *url)
+{
+    paths_t p; mkpaths(&p, pack_dir);
+    if (!host_allowed(url)) return rr_fail(c, RR_E_UNSAFE, "refusing to download from %s (only https on rwfc.net is allowed)", url);
+    int r = rr_mkdir_p(pack_dir);
+    if (r) return rr_fail(c, RR_E_IO, "cannot create %s: %s (the app has no write permission there; see the Access row)", pack_dir, strerror(errno));
+    if ((r = rr_update_recover(c, pack_dir))) return r;
+    unlink(p.list);
+    if (fresh_dir(c, p.stage) || fresh_dir(c, p.dl)) return rr_fail(c, RR_E_IO, "cannot create working folders in %s: %s (the app has no write permission there; see the Access row)", p.pack, strerror(errno));
+    char zp[PATH_MAX], part[PATH_MAX];
+    snprintf(zp, sizeof zp, "%s/full.zip", p.dl);
+    snprintf(part, sizeof part, "%s.part", zp);
+    size_t extracted = 0;
+    char ver[32] = "";
+    do {
+        uint8_t *mem = NULL; size_t len = 0; int status = 0; uint64_t exp = 0;
+        rr_logf(c, RR_LOG_INFO, "Downloading the full Retro Rewind pack: %s", url);
+        r = h->get(h->user, c, url, part, &mem, &len, 0, &exp, &status);
+        free(mem);
+        if (r) break;
+        if (status != 200) { r = rr_fail(c, RR_E_NET, "download of the full pack failed: HTTP %d", status); break; }
+        uint64_t sz = 0;
+        if (rr_file_size(part, &sz) || sz != len || (exp && exp != sz) || sz < 22) { r = rr_fail(c, RR_E_CORRUPT, "download of the full pack is incomplete (%llu of %llu bytes)", (unsigned long long)sz, (unsigned long long)exp); break; }
+        if (rename(part, zp)) { r = rr_fail(c, RR_E_IO, "cannot finish download"); break; }
+        rr_logf(c, RR_LOG_INFO, "Downloaded %llu MiB", (unsigned long long)(sz >> 20));
+        uint64_t freeb = rr_free_space(p.pack);
+        uint64_t maxt = freeb > (sz + (256ull << 20)) ? freeb - sz - (192ull << 20) : (64ull << 20);
+        if (!freeb) maxt = 12ull << 30;
+        uint64_t total = 0; size_t nfiles = 0;
+        if ((r = rr_zip_extract_full(c, zp, p.stage, maxt, &total, &nfiles, p.list))) break;
+        extracted = nfiles;
+        rr_logf(c, RR_LOG_INFO, "Archive extracted and verified: %zu files, %llu MiB", nfiles, (unsigned long long)(total >> 20));
+        unlink(zp);
+        if (!nfiles) { r = rr_fail(c, RR_E_FORMAT, "the full pack archive contains no files"); break; }
+        char sd[PATH_MAX]; snprintf(sd, sizeof sd, "%s/RetroRewind6", p.stage);
+        if (rr_path_kind(sd) != 2) { r = rr_fail(c, RR_E_FORMAT, "the full pack archive has no RetroRewind6 content"); break; }
+        /* version: the archive's own version.txt if it is valid, otherwise the newest version the server lists */
+        char vt[PATH_MAX], *old; size_t ol;
+        snprintf(vt, sizeof vt, "%s/version.txt", sd);
+        if (rr_path_kind(vt) == 1 && rr_read_text_file(vt, &old, &ol, 256) == 0) {
+            char *t = old; while (isspace((unsigned char)*t)) t++;
+            char *e = t + strlen(t); while (e > t && isspace((unsigned char)e[-1])) *--e = 0;
+            if (ver_ok(t)) snprintf(ver, sizeof ver, "%s", t);
+            free(old);
+        }
+        if (!ver[0]) {
+            char *txt; rr_manifest m;
+            if (!(r = http_text(c, h, RR_VERSION_URL, &txt))) {
+                r = rr_manifest_parse(c, txt, &m); free(txt);
+                if (!r) { snprintf(ver, sizeof ver, "%s", m.e[m.n - 1].version); rr_manifest_free(&m); rr_logf(c, RR_LOG_WARN, "the archive has no version.txt; recording %s from the server list", ver); }
+            }
+            if (r) break;
+            char line[64]; int n = snprintf(line, sizeof line, "%s\n", ver);
+            if (rr_write_text_file_atomic(vt, line, (size_t)n)) { r = rr_fail(c, RR_E_IO, "cannot write version file"); break; }
+        }
+    } while (0);
+    if (!r) {
+        if (rr_cancelled(c)) r = rr_fail(c, RR_E_CANCEL, "cancelled");
+        else if (rr_mkdir_p(p.rr)) r = rr_fail(c, RR_E_IO, "cannot create %s: %s", p.rr, strerror(errno));
+        else {
+            r = rr_merge_stage_ex(c, p.pack, p.stage, ver, extracted, p.list);
+        }
+    }
+    {   /* clean up by name as well, for systems where a folder cannot be listed */
+        char *txt; size_t len;
+        if (rr_path_kind(p.list) == 1 && rr_read_text_file(p.list, &txt, &len, 256u << 20) == 0) {
+            for (char *line = strtok(txt, "\n"); line; line = strtok(NULL, "\n")) {
+                if (line[0] != 'F' && line[0] != 'D') continue;
+                char nmbuf[PATH_MAX];
+                snprintf(nmbuf, sizeof nmbuf, "%s%s", line + 2, line[0] == 'D' ? "/.d" : "");
+                char *nm[1] = { nmbuf };
+                rm_named(p.stage, nm, NULL, 1, 0);
+            }
+            free(txt);
+        }
+        { char *vn[1] = { (char *)"RetroRewind6/version.txt" }; rm_named(p.stage, vn, NULL, 1, 0); }
+        unlink(zp); unlink(part);
+        rmdir(p.dl); rmdir(p.stage); unlink(p.list);
+    }
+    rr_remove_tree(p.stage); rr_remove_tree(p.dl);
+    if (!r) {
+        char v[32];
+        if (rr_read_installed_version(c, pack_dir, v) || strcmp(v, ver)) r = rr_fail(c, RR_E_STATE, "version file did not read back after the install");
+        else rr_logf(c, RR_LOG_INFO, "Retro Rewind %s installed", v);
+    }
+    return r;
+}
+
 int rr_update_apply(rr_ctx *c, const rr_http *h, const char *pack_dir, rr_update_state *s)
 {
     paths_t p; mkpaths(&p, pack_dir);

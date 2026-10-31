@@ -23,7 +23,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-int rr_zip_name_ok(const char *name)
+static int name_ok_impl(const char *name, int require_root)
 {
     static const char root[] = "RetroRewind6";
     size_t n = strlen(name);
@@ -31,7 +31,7 @@ int rr_zip_name_ok(const char *name)
     if (name[0] == '/' || strchr(name, '\\') || strchr(name, ':')) return 0;
     for (size_t i = 0; i < n; i++) if ((unsigned char)name[i] < 0x20 || name[i] == 0x7f) return 0;
     if (name[n - 1] == '/') n--; /* directory entries end in one slash */
-    if (n < sizeof root - 1 || strncmp(name, root, sizeof root - 1) || (n > sizeof root - 1 && name[sizeof root - 1] != '/')) return 0;
+    if (require_root && (n < sizeof root - 1 || strncmp(name, root, sizeof root - 1) || (n > sizeof root - 1 && name[sizeof root - 1] != '/'))) return 0;
     size_t i = 0;
     while (i < n) {
         size_t j = i;
@@ -42,6 +42,28 @@ int rr_zip_name_ok(const char *name)
         i = j + 1;
     }
     return 1;
+}
+
+int rr_zip_name_ok(const char *name) { return name_ok_impl(name, 1); }
+
+/* full-archive layout: how member names map into <stage>/RetroRewind6/ */
+typedef struct { int mode; char strip[256]; } fullmap_t; /* mode 0 = strict (update archives), 1 = rooted/wrapped, 2 = bare */
+/* returns the staged name for `name` (pointer into buf), or NULL when the member is not part of the pack */
+static const char *fullmap(const fullmap_t *m, const char *name, char *buf, size_t cap)
+{
+    static const char rr[] = "RetroRewind6";
+    if (!strncmp(name, "__MACOSX", 8) || strstr(name, ".DS_Store")) return NULL;
+    if (m->mode == 0) return name;
+    if (m->mode == 1) {
+        size_t sl = strlen(m->strip);
+        if (strncmp(name, m->strip, sl)) return NULL;
+        name += sl;
+        size_t l = strlen(name);
+        if (l >= sizeof rr - 1 && !strncmp(name, rr, sizeof rr - 1) && (l == sizeof rr - 1 || name[sizeof rr - 1] == '/')) return name;
+        return NULL;
+    }
+    if (snprintf(buf, cap, "%s/%s", rr, name) >= (int)cap) return NULL;
+    return buf;
 }
 
 typedef struct { int fd; } rd_t;
@@ -89,9 +111,23 @@ static void list_add(const char *list_path, char kind, const char *name)
     close(fd);
 }
 
+static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path, int full);
+
 int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path)
 {
+    return extract_impl(c, zip_path, stage_root, max_total, total_out, files_out, list_path, 0);
+}
+
+int rr_zip_extract_full(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path)
+{
+    return extract_impl(c, zip_path, stage_root, max_total, total_out, files_out, list_path, 1);
+}
+
+static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root, uint64_t max_total, uint64_t *total_out, size_t *files_out, const char *list_path, int full)
+{
     int r = 0;
+    fullmap_t fm; memset(&fm, 0, sizeof fm);
+    char **names = NULL;
     rd_t rd; rd.fd = open(zip_path, O_RDONLY);
     if (rd.fd < 0) return rr_fail(c, RR_E_IO, "cannot open %s", zip_path);
     struct stat st;
@@ -105,14 +141,32 @@ int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, u
     }
     mz_uint n = mz_zip_reader_get_num_files(&za);
     if (n == 0 || n > 50000) { r = rr_fail(c, RR_E_CORRUPT, "ZIP has %u entries", (unsigned)n); goto out; }
-    char **names = rr_xmalloc(n * sizeof *names);
+    /* full archives: decide the layout first (rooted, wrapped in one folder, or bare) */
+    if (full) {
+        fm.mode = 2;
+        for (mz_uint i = 0; i < n && fm.mode == 2; i++) {
+            mz_zip_archive_file_stat fs;
+            if (!mz_zip_reader_file_stat(&za, i, &fs)) break;
+            const char *nm = fs.m_filename;
+            if (!strncmp(nm, "RetroRewind6/", 13) || !strcmp(nm, "RetroRewind6")) { fm.mode = 1; fm.strip[0] = 0; break; }
+            const char *sl = strchr(nm, '/');
+            if (sl && sl > nm && (size_t)(sl - nm) < sizeof fm.strip - 2 && !strncmp(sl + 1, "RetroRewind6/", 13) ) {
+                fm.mode = 1; memcpy(fm.strip, nm, (size_t)(sl - nm) + 1); fm.strip[sl - nm + 1] = 0;
+            }
+        }
+        rr_logf(c, RR_LOG_INFO, "Full archive layout: %s", fm.mode == 2 ? "files at archive root (placed into RetroRewind6)" : fm.strip[0] ? "RetroRewind6 inside a wrapper folder" : "RetroRewind6 at archive root");
+    }
+    names = rr_xmalloc(n * sizeof *names);
     mz_uint nn = 0;
     uint64_t total = 0, files = 0;
     /* pass 1: validate everything before touching the disk */
     for (mz_uint i = 0; i < n && !r; i++) {
         mz_zip_archive_file_stat fs;
         if (!mz_zip_reader_file_stat(&za, i, &fs)) { r = rr_fail(c, RR_E_CORRUPT, "ZIP directory entry %u unreadable", (unsigned)i); break; }
-        if (!rr_zip_name_ok(fs.m_filename)) { r = rr_fail(c, RR_E_UNSAFE, "unsafe or unexpected path in ZIP: '%.120s'", fs.m_filename); break; }
+        if (!name_ok_impl(fs.m_filename, !full)) { r = rr_fail(c, RR_E_UNSAFE, "unsafe or unexpected path in ZIP: '%.120s'", fs.m_filename); break; }
+        char mb[1024];
+        const char *mapped = full ? fullmap(&fm, fs.m_filename, mb, sizeof mb) : fs.m_filename;
+        if (!mapped) continue; /* not part of the pack */
         if (fs.m_is_encrypted) { r = rr_fail(c, RR_E_UNSUPPORTED, "encrypted ZIP entry '%.120s'", fs.m_filename); break; }
         if (!fs.m_is_supported) { r = rr_fail(c, RR_E_UNSUPPORTED, "unsupported compression in '%.120s'", fs.m_filename); break; }
         if (((fs.m_version_made_by >> 8) == 3) && ((fs.m_external_attr >> 16) & 0170000) == 0120000) { r = rr_fail(c, RR_E_UNSAFE, "symbolic link in ZIP: '%.120s'", fs.m_filename); break; }
@@ -122,7 +176,7 @@ int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, u
             total += fs.m_uncomp_size; files++;
             if (total > max_total) { r = rr_fail(c, RR_E_NOSPACE, "ZIP expands to more than %llu MiB", (unsigned long long)(max_total >> 20)); break; }
         }
-        char *nm = rr_xstrdup(fs.m_filename);
+        char *nm = rr_xstrdup(mapped);
         size_t l = strlen(nm); if (l && nm[l - 1] == '/') nm[l - 1] = 0;
         names[nn++] = nm;
     }
@@ -139,12 +193,15 @@ int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, u
     for (mz_uint i = 0; i < n && !r; i++) {
         mz_zip_archive_file_stat fs;
         mz_zip_reader_file_stat(&za, i, &fs);
+        char mb[1024];
+        const char *mapped = full ? fullmap(&fm, fs.m_filename, mb, sizeof mb) : fs.m_filename;
+        if (!mapped) continue;
         char path[4096];
-        if (snprintf(path, sizeof path, "%s/%s", stage_root, fs.m_filename) >= (int)sizeof path) { r = rr_fail(c, RR_E_UNSAFE, "path too long"); break; }
+        if (snprintf(path, sizeof path, "%s/%s", stage_root, mapped) >= (int)sizeof path) { r = rr_fail(c, RR_E_UNSAFE, "path too long"); break; }
         if (fs.m_is_directory) {
             size_t l = strlen(path); while (l && path[l - 1] == '/') path[--l] = 0;
             if (rr_mkdir_p(path)) r = rr_fail(c, RR_E_IO, "cannot create %s", path);
-            else list_add(list_path, 'D', fs.m_filename);
+            else list_add(list_path, 'D', mapped);
             continue;
         }
         char *sl = strrchr(path, '/'); *sl = 0;
@@ -152,7 +209,7 @@ int rr_zip_extract_ex(rr_ctx *c, const char *zip_path, const char *stage_root, u
         *sl = '/';
         wr_t w = {.fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644), .written = 0, .crc = 0, .c = c, .err = 0};
         if (w.fd < 0) { r = rr_fail(c, RR_E_IO, "cannot create %s: %s", path, strerror(errno)); break; }
-        list_add(list_path, 'F', fs.m_filename); /* listed before writing so a failed run can still be cleaned up by name */
+        list_add(list_path, 'F', mapped); /* listed before writing so a failed run can still be cleaned up by name */
         mz_bool ok = mz_zip_reader_extract_to_callback(&za, i, zwrite, &w, 0);
         int fr = fsync(w.fd);
         close(w.fd);

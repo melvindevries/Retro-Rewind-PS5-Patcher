@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+#define RR_FULL_URL "https://update.rwfc.net/RetroRewind/zip/RetroRewind.zip"
 #define RR_VERSION_URL "https://update.rwfc.net/RetroRewind/RetroRewindVersion.txt"
 
 /* Transport supplied by the platform (sceHttp on PS5, a mock in tests).
@@ -46,6 +47,11 @@ int rr_update_check(rr_ctx *c, const rr_http *h, const char *pack_dir, rr_update
 int rr_update_check_ex(rr_ctx *c, const rr_http *h, const char *pack_dir, rr_update_state *s, int latest_only);
 /* Applies every pending version in order. On failure the pack is left exactly at the last fully applied version. */
 int rr_update_apply(rr_ctx *c, const rr_http *h, const char *pack_dir, rr_update_state *s);
+
+/* Fresh install of the complete pack from `url` (https, *.rwfc.net only). Creates every folder it needs, extracts to a
+ * staging folder, merges into <pack_dir>/RetroRewind6 with the same journal/rollback as updates, and writes version.txt
+ * (the archive's own when it has one, otherwise the newest version from the manifest). Failure leaves the pack as it was. */
+int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const char *url);
 
 /* exposed for tests */
 int rr_merge_stage(rr_ctx *c, const char *pack_dir, const char *stage_root, const char *version);

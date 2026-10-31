@@ -6,7 +6,9 @@
 | Title folder structure + param.json validated by the build's checks (titleId/contentId/conceptId consistent) | YES |
 | Every imported libc/kernel/pthread symbol exists in an SDK stub library | YES |
 | Patch engine vs real WIT on host: byte-identical WBFS for USA/PAL/Japan synthetic discs; independent verifier; corruption, wrong region, multiple images, unsafe paths, cancel/failed-patch-keeps-old-output cases | YES (27/27 per region) |
-| Update logic against a mock server: sequential multi-ZIP, merge rules, rollback, corrupt/unsafe ZIPs, interrupted merge recovery | YES (59/59) |
+| Update logic against a mock server: sequential multi-ZIP, merge rules, rollback, corrupt/unsafe ZIPs, interrupted merge recovery | YES (81 checks) |
+| Install Full Game against a mock server: archive stored rooted / in a wrapper folder / bare, foreign folders skipped, missing version.txt, unsafe archive, truncated download, HTTP 404, no leftovers | YES (in the 81 update checks) |
+| Install Full Game on a real PS5 with the real archive | NO |
 | Launched on a real PS5 | YES - by the author (needs OnionHEN allowlist) |
 | Real PAL patch of a real Mario Kart Wii image on PS5, patched game runs | YES - by the author, full flow |
 | USA / Japan on a console | NO (host tests only) |

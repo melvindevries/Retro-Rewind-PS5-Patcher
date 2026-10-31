@@ -32,7 +32,7 @@ constexpr const char *kLogDir = "/data/porpoise/rewind/logs";
 constexpr const char *kLogFile = "/data/porpoise/rewind/logs/porpoise.log";
 constexpr const char *kRegionFile = "/data/porpoise/rewind/state/region.txt";
 
-enum Job { J_NONE, J_REFRESH, J_CHECK, J_INSTALL, J_PATCH, J_VERIFY };
+enum Job { J_NONE, J_REFRESH, J_CHECK, J_INSTALL, J_PATCH, J_VERIFY, J_FULL };
 
 constexpr int kLogLines = 400, kLogLen = 220;
 pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -45,6 +45,7 @@ volatile int g_dirty = 1;
 // Shared (g_mu) view of the world.
 struct View
 {
+    bool pack_missing = false;
     char installed[32] = "-", latest[32] = "-", update_note[160] = "not checked yet";
     char base_line[400] = "scanning...", out_line[200] = "-";
     char phase[64] = "", result[300] = "";
@@ -174,6 +175,7 @@ void do_refresh(rr_ctx &c)
     (void)c;
     pthread_mutex_lock(&g_mu);
     std::snprintf(g_v.installed, sizeof g_v.installed, "%s", vr == 0 ? inst : "not installed");
+    g_v.pack_missing = rr_path_kind("/data/porpoise/rewind/pack/RetroRewind6/version.txt") != 1;
     g_v.base_ok = false;
     if (sr == 0 && st.base_found && st.base_region)
     {
@@ -195,6 +197,7 @@ void do_refresh(rr_ctx &c)
 
 int do_check(rr_ctx &c)
 {
+    if (g_v.pack_missing) return rr_fail(&c, RR_E_STATE, "Retro Rewind is not installed yet. Use Install Full Game first.");
     if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
     int r = sce_http_start();
     if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
@@ -241,6 +244,16 @@ int do_install(rr_ctx &c)
     return r;
 }
 
+int do_full(rr_ctx &c)
+{
+    // every folder the tool needs is created here if it is missing
+    for (const char *d : {kRoot, kBase, kPack, kBuilder, kState, kLogDir, kOut}) (void)rr_mkdir_p(d);
+    int r = sce_http_start();
+    if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
+    if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
+    return rr_install_full(&c, &g_http, kPack, RR_FULL_URL);
+}
+
 void *worker(void *arg)
 {
     const int job = (int)(long)arg;
@@ -259,6 +272,17 @@ void *worker(void *arg)
         r = do_install(c);
         if (!r && !g_v.result_is_error && g_v.pending == 0 && std::strncmp(g_v.result, "Retro Rewind", 12) != 0)
             set_result(false, "Update complete. Installed version is now %s.", g_v.installed);
+        break;
+    case J_FULL:
+        r = do_full(c);
+        if (!r)
+        {
+            char v[32] = "";
+            rr_ctx q;
+            make_ctx(q);
+            (void)rr_read_installed_version(&q, kPack, v);
+            set_result(false, "Retro Rewind %s installed in %s/RetroRewind6. Next: put your Mario Kart Wii .wbfs in the base folder, then choose a region and patch.", v[0] ? v : "?", kPack);
+        }
         break;
     case J_PATCH:
     {
@@ -326,7 +350,24 @@ const std::uint32_t C_BG = rgb(14, 17, 26), C_PANEL = rgb(26, 31, 46), C_TXT = r
                     C_ACC = rgb(80, 200, 255), C_SEL = rgb(40, 70, 110), C_OK = rgb(110, 220, 140), C_ERR = rgb(255, 110, 110),
                     C_WARN = rgb(255, 200, 90);
 
-enum Item { I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG, I_COUNT };
+enum Item { I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG, I_FULL, I_COUNT };
+
+// menu order; "Install full game" only exists while no Retro Rewind pack is installed
+int menu_items(int *out)
+{
+    int n = 0;
+    if (g_v.pack_missing) out[n++] = I_FULL;
+    for (int i : {I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG}) out[n++] = i;
+    return n;
+}
+int menu_move(int sel, int dir)
+{
+    int it[I_COUNT];
+    const int n = menu_items(it);
+    int pos = 0;
+    for (int i = 0; i < n; ++i) if (it[i] == sel) pos = i;
+    return it[(pos + n + dir) % n];
+}
 int g_sel = I_CHECK;
 bool g_log_view = false;
 int g_log_scroll = 0; // lines from newest
@@ -337,6 +378,7 @@ const char *item_label(int i)
     {
     case I_CHECK: return "Check for Retro Rewind updates";
     case I_INSTALL: return "Install updates";
+    case I_FULL: return "Install Full Game";
     case I_REGION: return "Region";
     case I_PATCH: return "Patch game";
     case I_VERIFY: return "Verify output";
@@ -412,18 +454,23 @@ void draw_main()
 
     // menu
     gfx::fill(60, 150, 700, 520, C_PANEL);
-    for (int i = 0; i < I_COUNT; ++i)
+    int order[I_COUNT];
+    const int nmenu = menu_items(order);
+    if (g_sel == I_FULL && !g_v.pack_missing) g_sel = I_CHECK;
+    const int pitch = nmenu > 6 ? 66 : 76, rowh = nmenu > 6 ? 58 : 64;
+    for (int k = 0; k < nmenu; ++k)
     {
-        const int y = 170 + i * 76;
-        if (i == g_sel) { gfx::fill(70, y - 8, 680, 64, C_SEL); gfx::frame(70, y - 8, 680, 64, 2, C_ACC); }
+        const int i = order[k];
+        const int y = 170 + k * pitch;
+        if (i == g_sel) { gfx::fill(70, y - 8, 680, rowh, C_SEL); gfx::frame(70, y - 8, 680, rowh, 2, C_ACC); }
         char buf[128];
         if (i == I_REGION) std::snprintf(buf, sizeof buf, "< %s >", region_name(v.region));
         else std::snprintf(buf, sizeof buf, "%s", item_label(i));
         const bool dis = busy && i != I_LOG;
         if (i == I_REGION)
         {
-            gfx::text(90, y - 2, "Region", 1, C_DIM);
-            gfx::text(90, y + 18, buf, 2, dis ? C_DIM : (v.region ? C_TXT : C_WARN));
+            gfx::text(90, y - 4, "Region", 1, C_DIM);
+            gfx::text(90, y + 14, buf, 2, dis ? C_DIM : (v.region ? C_TXT : C_WARN));
         }
         else gfx::text(90, y + 8, buf, 2, dis ? C_DIM : C_TXT, 30);
     }
@@ -461,7 +508,7 @@ void draw_main()
         else gfx::fill(94 + (int)((g_log_n * 37) % 1500), 784, 230, 28, C_ACC);
     }
     else if (v.result[0]) wrap_text(90, 720, v.result, 2, v.result_is_error ? C_ERR : C_OK, 85, 3);
-    else gfx::text(90, 720, "Ready. Check for updates, install them, choose a region, then patch.", 2, C_DIM);
+    else gfx::text(90, 720, g_v.pack_missing ? "Retro Rewind is not installed. Choose Install Full Game to download it." : "Ready. Check for updates, install them, choose a region, then patch.", 2, C_DIM);
 
     // log tail
     gfx::text(60, 880, "Log", 1, C_DIM);
@@ -479,6 +526,7 @@ void activate(int item)
     {
     case I_CHECK: start_job(J_CHECK); break;
     case I_INSTALL: start_job(J_INSTALL); break;
+    case I_FULL: if (g_v.pack_missing) start_job(J_FULL); break;
     case I_PATCH:
         if (!g_v.region) { set_result(true, "Choose a region first (Left/Right on the Region line). The patch is never started without it."); break; }
         start_job(J_PATCH);
@@ -638,8 +686,9 @@ void app_run()
         else if (p)
         {
             g_dirty = 1;
-            if (p & pad::up) g_sel = (g_sel + I_COUNT - 1) % I_COUNT;
-            if (p & pad::down) g_sel = (g_sel + 1) % I_COUNT;
+            { int it[I_COUNT]; const int nm = menu_items(it); bool vis = false; for (int i = 0; i < nm; ++i) if (it[i] == g_sel) vis = true; if (!vis) g_sel = it[0]; }
+            if (p & pad::up) g_sel = menu_move(g_sel, -1);
+            if (p & pad::down) g_sel = menu_move(g_sel, +1);
             if (g_sel == I_REGION && (p & pad::left)) change_region(-1);
             if (g_sel == I_REGION && (p & pad::right)) change_region(+1);
             if (p & pad::cross) { if (g_sel == I_REGION) change_region(+1); else activate(g_sel); }

@@ -119,4 +119,20 @@ printf 'RRJ1\nM Binaries/Code.pul\nA Tracks/added.szs\nM Binaries/Loader.pul\n' 
 $CLI recover $T/pack $T/srv | grep -q RECOVERED; ok $? "recover runs"
 [ "$(snap)" = "$B" ] && [ -z "$(leftovers)" ]; ok $? "pack restored exactly, leftovers cleaned"
 
+echo "--- 12. full install (no pack yet): folders are created, files placed, version written"
+FULL() { rm -rf $T/pack; $CLI full $T/pack $T/srv "${2:-}" $1 2>$T/err; }
+for Z in full_rooted full_wrapped full_bare full_extra; do
+  rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "" $Z.zip 2>$T/err); echo "$OUT"
+  echo "$OUT" | grep -q "INSTALLED now=6.13.3"; ok $? "$Z: installed from nothing (pack folder did not exist)"
+  [ "$(head -c 8 $T/pack/RetroRewind6/Binaries/Code.pul)" = FULLCODE ] && [ -f $T/pack/RetroRewind6/strm/s.brstm ] && [ -f $T/pack/RetroRewind6/Tracks/t1.szs ]; ok $? "$Z: files on the right place"
+  [ ! -e $T/pack/RetroRewind6/RetroRewind6 ] && [ ! -e $T/pack/RetroRewind6/riivolution ] && [ ! -e $T/pack/RetroRewind6/__MACOSX ]; ok $? "$Z: no nesting, foreign folders not copied"
+  [ -z "$(leftovers)" ]; ok $? "$Z: no leftovers ($(leftovers))"
+done
+rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "" full_noversion.zip 2>$T/err); echo "$OUT" | grep -q "INSTALLED now=6.13.3"; ok $? "archive without version.txt: version taken from the server list"
+rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "" full_evil.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "unsafe full archive refused"
+[ ! -e $T/escape.txt ] && [ ! -e $T/pack/RetroRewind6 ]; ok $? "nothing written after refusal"
+rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "truncate:full_rooted.zip" full_rooted.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "truncated download refused"
+[ ! -e $T/pack/RetroRewind6 ] && [ -z "$(leftovers)" ]; ok $? "no half-installed pack after a failed download"
+rm -rf $T/pack; OUT=$($CLI full $T/pack $T/srv "" missing.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "HTTP 404 reported as failure"
+
 echo; echo "passed=$pass failed=$fail"; [ $fail = 0 ]

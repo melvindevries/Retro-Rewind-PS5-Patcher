@@ -28,6 +28,13 @@ zf("evil_link.zip", {"RetroRewind6/ok.txt": b"x"}, symlink=("RetroRewind6/link",
 zf("evil_nested.zip", {"RetroRewind6/RetroRewind6/Binaries/Code.pul": b"NESTED"})  # legal path, must stay literal (no flattening)
 zf("conflict.zip", {"RetroRewind6/Binaries": b"file where a dir lives"})
 open(os.path.join(out, "garbage.zip"), "wb").write(b"this is not a zip file at all, just text" * 10)
+body = {"Binaries/Code.pul": b"FULLCODE" * 50, "Binaries/Loader.pul": b"FULLLOADER", "Tracks/t1.szs": b"T1" * 5000, "strm/s.brstm": b"S" * 3000, "Assets/CommonAssets.szs": b"CA" * 100}
+zf("full_rooted.zip", {"RetroRewind6/": b"", **{"RetroRewind6/" + k: v for k, v in body.items()}, "RetroRewind6/version.txt": b"6.13.3\n"})
+zf("full_wrapped.zip", {**{"RetroRewind/RetroRewind6/" + k: v for k, v in body.items()}, "RetroRewind/RetroRewind6/version.txt": b"6.13.3\n"})
+zf("full_bare.zip", {**body, "version.txt": b"6.13.3\n"})
+zf("full_noversion.zip", {"RetroRewind6/" + k: v for k, v in body.items()})
+zf("full_extra.zip", {**{"RetroRewind6/" + k: v for k, v in body.items()}, "RetroRewind6/version.txt": b"6.13.3\n", "riivolution/RetroRewind6.xml": b"<xml/>", "__MACOSX/x": b"junk"})
+zf("full_evil.zip", {"RetroRewind6/ok.txt": b"x", "RetroRewind6/../../escape.txt": b"pwn"})
 H = "https://cdn.update.rwfc.net/RetroRewind/zip/"
 def manifest(name, lines):
     open(os.path.join(out, name), "w").write("\n".join(lines) + "\n")

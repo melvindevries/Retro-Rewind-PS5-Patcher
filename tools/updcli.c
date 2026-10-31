@@ -54,6 +54,13 @@ int main(int argc, char **argv)
     mock_t m = {argv[3], argc > 4 ? argv[4] : NULL, 0};
     rr_http h = {mock_get, &m};
     if (!strcmp(argv[1], "recover")) { int r = rr_update_recover(&c, argv[2]); printf(r ? "FAILED: %s\n" : "RECOVERED\n", c.err); return r != 0; }
+    if (!strcmp(argv[1], "full")) { /* full RR_FULL_URL-style install; argv[5] = archive file name on the mock server */
+        char url[600]; snprintf(url, sizeof url, "https://update.rwfc.net/RetroRewind/zip/%s", argc > 5 ? argv[5] : "RetroRewind.zip");
+        int r = rr_install_full(&c, &h, argv[2], url);
+        if (r) { printf("FAILED: %s\n", c.err); return 1; }
+        char v[32]; rr_read_installed_version(&c, argv[2], v);
+        printf("INSTALLED now=%s gets=%d\n", v, m.gets); return 0;
+    }
     rr_update_state s;
     int r = rr_update_check_ex(&c, &h, argv[2], &s, !strcmp(argv[1], "applylatest"));
     if (r) { printf("FAILED: %s\n", c.err); return 1; }
