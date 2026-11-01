@@ -93,4 +93,15 @@ rm -f $OUT $OUT.meta; echo secret > $T/outside.txt; rm -f $T/pack/RetroRewind6/B
 run patch 2>&1 | grep -q "symbolic link"; ok $? "symlinked pack file refused"
 [ ! -e $OUT ]; ok $? "no output created"
 
+echo "--- 12. optional language files missing (a pack without Language/*/Font), like the official script"
+rm -f $T/pack/RetroRewind6/Binaries/Code.pul $T/pack/RetroRewind6/Binaries/code.pul
+cp $O/RetroRewind6/Binaries/* $T/pack/RetroRewind6/Binaries/ 2>/dev/null || true
+rm -rf $T/pack/RetroRewind6/Language/*/Font; rm -f $OUT $OUT.meta
+run patch > $T/o12 2>&1; grep -q '^PATCHED' $T/o12; ok $? "patch succeeds without the Font folders"
+grep -q "optional language files" $T/o12; ok $? "the skipped files are reported"
+run verify | grep -q 'VERIFY OK'; ok $? "output verifies"
+rm -f $T/pack/RetroRewind6/Binaries/Code.pul $T/pack/RetroRewind6/Binaries/code.pul; rm -f $OUT $OUT.meta
+run patch 2>&1 | grep -q "does not exist"; ok $? "a missing core file (Binaries/Code.pul) still stops the patch"
+[ ! -e $OUT ]; ok $? "no output created"
+
 echo; echo "passed=$pass failed=$fail"; [ $fail = 0 ]

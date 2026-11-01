@@ -92,6 +92,7 @@ Already have your own Retro Rewind pack or builder files? Put them in `/data/por
 ## Known limitations
 - Only the newest update archive is installed. The server publishes one archive per release containing that release's changes, so if your pack is several releases behind, files that only older archives carried can be missing. In that case reinstall the pack (see Troubleshooting).
 - Delete lists inside update archives are not applied (merge only).
+- If the pack has no files for some languages (for example `Language/*/Font`), the patch skips them like the official builder and notes it in the log; the game keeps its original files for those.
 - The app needs the OnionHEN allowlist entry; it cannot work in a plain sandbox.
 - The app never downloads your game. It downloads the Retro Rewind archives from `update.rwfc.net` and the builder tools from this repository.
 

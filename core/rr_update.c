@@ -555,6 +555,28 @@ static int apply_version(rr_ctx *c, const rr_http *h, const paths_t *p, const rr
     return r;
 }
 
+/* logs how many files each top-level folder of the pack contains, so a pack that lacks a folder can be diagnosed from the log */
+static void log_top_folders(rr_ctx *c, const char *list_path)
+{
+    char *txt; size_t len;
+    if (rr_read_text_file(list_path, &txt, &len, 256u << 20)) return;
+    char names[24][48]; size_t cnt[24]; unsigned n = 0;
+    for (char *line = strtok(txt, "\n"); line; line = strtok(NULL, "\n")) {
+        if (line[0] != 'F' || strncmp(line + 2, "RetroRewind6/", 13)) continue;
+        const char *rest = line + 15;
+        const char *sl = strchr(rest, '/');
+        char top[48]; size_t l = sl ? (size_t)(sl - rest) : 0;
+        if (!sl) snprintf(top, sizeof top, "(files in root)"); else { if (l > 47) l = 47; memcpy(top, rest, l); top[l] = 0; }
+        unsigned k = 0; while (k < n && strcmp(names[k], top)) k++;
+        if (k == n) { if (n == 24) continue; snprintf(names[n], 48, "%s", top); cnt[n++] = 0; }
+        cnt[k]++;
+    }
+    free(txt);
+    char buf[700]; size_t w = 0; buf[0] = 0;
+    for (unsigned k = 0; k < n && w < sizeof buf - 80; k++) w += (size_t)snprintf(buf + w, sizeof buf - w, "%s%s=%zu", k ? ", " : "", names[k], cnt[k]);
+    rr_logf(c, RR_LOG_INFO, "Pack folders in the archive (files): %s", buf);
+}
+
 int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const char *url)
 {
     paths_t p; mkpaths(&p, pack_dir);
@@ -587,6 +609,7 @@ int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const cha
         if ((r = rr_zip_extract_full(c, zp, p.stage, maxt, &total, &nfiles, p.list))) break;
         extracted = nfiles;
         rr_logf(c, RR_LOG_INFO, "Archive extracted and verified: %zu files, %llu MiB", nfiles, (unsigned long long)(total >> 20));
+        log_top_folders(c, p.list);
         unlink(zp);
         if (!nfiles) { r = rr_fail(c, RR_E_FORMAT, "the full pack archive contains no files"); break; }
         char sd[PATH_MAX]; snprintf(sd, sizeof sd, "%s/RetroRewind6", p.stage);

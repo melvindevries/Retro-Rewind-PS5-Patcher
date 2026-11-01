@@ -169,6 +169,7 @@ static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root,
         rr_logf(c, RR_LOG_INFO, "Full archive layout: %s", fm.mode == 2 ? "files at archive root (placed into RetroRewind6)" : fm.strip[0] ? "RetroRewind6 inside a wrapper folder" : "RetroRewind6 at archive root");
     }
     names = rr_xmalloc(n * sizeof *names);
+    size_t skipped = 0; char skipnames[8][64]; unsigned nskip = 0;
     mz_uint nn = 0;
     uint64_t total = 0, files = 0;
     /* pass 1: validate everything before touching the disk */
@@ -178,7 +179,13 @@ static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root,
         if (!name_ok_impl(fs.m_filename, !full)) { r = rr_fail(c, RR_E_UNSAFE, "unsafe or unexpected path in ZIP: '%.120s'", fs.m_filename); break; }
         char mb[1024];
         const char *mapped = full ? fullmap(&fm, fs.m_filename, mb, sizeof mb) : fs.m_filename;
-        if (!mapped) continue; /* not part of the pack */
+        if (!mapped) { /* not part of the pack */
+            skipped++;
+            char top[64]; snprintf(top, sizeof top, "%.63s", fs.m_filename); char *sl = strchr(top, '/'); if (sl) sl[1] = 0;
+            int seen = 0; for (unsigned k = 0; k < nskip; k++) if (!strcmp(skipnames[k], top)) seen = 1;
+            if (!seen && nskip < 8) snprintf(skipnames[nskip++], 64, "%s", top);
+            continue;
+        }
         if (fs.m_is_encrypted) { r = rr_fail(c, RR_E_UNSUPPORTED, "encrypted ZIP entry '%.120s'", fs.m_filename); break; }
         if (!fs.m_is_supported) { r = rr_fail(c, RR_E_UNSUPPORTED, "unsupported compression in '%.120s'", fs.m_filename); break; }
         if (((fs.m_version_made_by >> 8) == 3) && ((fs.m_external_attr >> 16) & 0170000) == 0120000) { r = rr_fail(c, RR_E_UNSAFE, "symbolic link in ZIP: '%.120s'", fs.m_filename); break; }
@@ -195,6 +202,11 @@ static int extract_impl(rr_ctx *c, const char *zip_path, const char *stage_root,
     if (!r) {
         qsort(names, nn, sizeof *names, cmpstr);
         for (mz_uint i = 1; i < nn; i++) if (!strcmp(names[i], names[i - 1])) { r = rr_fail(c, RR_E_UNSAFE, "duplicate entry in ZIP: '%.120s'", names[i]); break; }
+    }
+    if (full && !r && skipped) {
+        char buf[600]; size_t w = 0; buf[0] = 0;
+        for (unsigned k = 0; k < nskip && w < sizeof buf - 80; k++) w += (size_t)snprintf(buf + w, sizeof buf - w, "%s%s", k ? ", " : "", skipnames[k]);
+        rr_logf(c, RR_LOG_WARN, "%zu archive entries are outside the pack and were skipped (e.g. %s)", skipped, buf);
     }
     for (mz_uint i = 0; i < nn; i++) free(names[i]);
     free(names);

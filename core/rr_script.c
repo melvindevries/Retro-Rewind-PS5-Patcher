@@ -26,6 +26,7 @@ typedef struct {
     int nvars;
     char **lines; size_t nlines;
     unsigned long cps; /* statistics */
+    unsigned long skipped; /* optional language files that the pack does not contain */
 } sh_t;
 
 static const char *var_get(const sh_t *s, const char *name, size_t nl)
@@ -217,6 +218,22 @@ static int under_root(const char *path, const char *root, size_t *rootlen)
     return 1;
 }
 
+/* The official builder shell script carries on when a `cp` finds no source file, and the disc keeps the original file there.
+ * Core pack files are still required here, but files under RetroRewind6/Language/ (fonts and translations of languages
+ * the pack may not ship) are optional, exactly like with the official script. */
+static int optional_missing(sh_t *s, const char *path)
+{
+    char fixed[PATH_MAX]; rr_fileinfo fi;
+    fix_case(path, fixed, sizeof fixed);
+    size_t rl = 0;
+    if (!under_root(fixed, s->roots->pack_dir, &rl) || !strstr(fixed + rl, "/RetroRewind6/Language/")) return 0;
+    if (strstr(fixed, "..")) return 0;
+    if (rr_stat(fixed, 0, &fi) == 0 || errno != ENOENT) return 0;
+    s->skipped++;
+    rr_logf(s->c, RR_LOG_WARN, "not in the pack, skipped (the official builder skips it too): %s", fixed + rl + 1);
+    return 1;
+}
+
 static int host_ok(sh_t *s, const char *path)
 {
     char fixed[PATH_MAX];
@@ -346,11 +363,13 @@ static int do_cp(sh_t *s, word_t *w, int nw)
             }
             free_list(names, nn);
         } else {
+            if (optional_missing(s, sl.host)) continue;
             if ((r = host_ok(s, sl.host))) goto out;
             if (ns == cs) { cs = cs ? cs * 2 : 16; srcs = rr_xrealloc(srcs, cs * sizeof *srcs); }
             srcs[ns++] = rr_xstrdup(sl.host);
         }
     }
+    if (!ns) { r = 0; goto out; } /* every source was an optional language file the pack does not have */
     /* sys/ destination */
     if (dl.kind == LOC_SYS) {
         for (size_t k = 0; k < ns; k++) {
@@ -530,6 +549,7 @@ int rr_script_run(rr_ctx *c, rr_vtree *t, const char *script, const rr_script_ro
     s.nlines = nl;
     int r = run_range(&s, 0, nl, 0);
     if (!r) rr_logf(c, RR_LOG_INFO, "copy script finished: %lu file copies", s.cps);
+    if (!r && s.skipped) rr_logf(c, RR_LOG_WARN, "%lu optional language files are not in this pack and were left as in the original game", s.skipped);
     for (size_t i = 0; i < nl; i++) free(s.lines[i]);
     free(s.lines);
     for (int i = 0; i < s.nvars; i++) { free(s.vars[i].name); free(s.vars[i].val); }
