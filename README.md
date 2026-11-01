@@ -32,7 +32,7 @@ Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 - Free internal space of roughly one game image plus the Retro Rewind pack.
 
 ## Install
-1. **Download** `PPSA97531.zip` from the [latest release](../../releases/latest). Optionally check it against `SHA256SUMS`.
+1. **Download** `PPSA97531.zip` from the [latest release](../../releases/latest).
 2. **Unzip** it. You get a folder `PPSA97531` containing `eboot.bin`, `sce_module/` and `sce_sys/`.
 3. **Copy** that whole folder to `/data/homebrew/PPSA97531/` on the console (FTP). Wait about 15 seconds; ShadowMountPlus registers it and the app shows up on the home screen.
 4. **Allow the app in OnionHEN.** Without this the app cannot read or write `/data`. Add the title ID `PPSA97531` in
