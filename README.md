@@ -27,6 +27,7 @@ Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 
 ## Requirements
 - A jailbroken PS5 running [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) and OnionHEN.
+- [Porpoise](https://github.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5) (Dolphin for PS5) installed on the console. This app writes the patched game to `/data/porpoise/games/`, which is where Porpoise looks for games.
 - Your own legally obtained Mario Kart Wii image as a `.wbfs` file.
 - An FTP client (or another way to copy files to the console) and an internet connection.
 - Free internal space of roughly one game image plus the Retro Rewind pack.
