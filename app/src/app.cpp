@@ -302,10 +302,18 @@ void *worker(void *arg)
         break;
     case J_PATCH:
     {
-        if (rr_builder_present(kBuilder) && !rr_builder_current(kBuilder))
+        // make sure the builder files are there and recent enough; downloaded automatically when needed
         {
-            r = rr_fail(&c, RR_E_STATE, "The ISO builder files are outdated (the game would show \"Incompatible file ... upgrade your Kamek Loader\"). Choose Check for updates once to refresh them, then patch again.");
-            break;
+            int refreshed = 0;
+            int hr = sce_http_start();
+            int br = hr < 0 ? rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)hr)
+                            : rr_builder_refresh(&c, &g_http, kBuilder, RR_BUILDER_URL, &refreshed);
+            if (refreshed) add_log(RR_LOG_INFO, "ISO builder files updated to the newest version");
+            if (br)
+            {
+                if (!rr_builder_present(kBuilder) || !rr_builder_current(kBuilder)) { r = br; break; }
+                add_log(RR_LOG_WARN, "could not check for a newer builder; using the installed one");
+            }
         }
         rr_patch_cfg cfg = make_cfg(region);
         rr_patch_result res;
