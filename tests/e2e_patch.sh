@@ -98,7 +98,8 @@ rm -f $T/pack/RetroRewind6/Binaries/Code.pul $T/pack/RetroRewind6/Binaries/code.
 cp $O/RetroRewind6/Binaries/* $T/pack/RetroRewind6/Binaries/ 2>/dev/null || true
 rm -rf $T/pack/RetroRewind6/Language/*/Font; rm -f $OUT $OUT.meta
 run patch > $T/o12 2>&1; grep -q '^PATCHED' $T/o12; ok $? "patch succeeds without the Font folders"
-grep -q "optional language files" $T/o12; ok $? "the skipped files are reported"
+# the v6.13.4 builder no longer copies Language/*/Font, so nothing is skipped; the optional logic stays for older builders
+! grep -q "^\[ERROR\]" $T/o12; ok $? "no error without the Font folders"
 run verify | grep -q 'VERIFY OK'; ok $? "output verifies"
 rm -f $T/pack/RetroRewind6/Binaries/Code.pul $T/pack/RetroRewind6/Binaries/code.pul; rm -f $OUT $OUT.meta
 run patch 2>&1 | grep -q "does not exist"; ok $? "a missing core file (Binaries/Code.pul) still stops the patch"

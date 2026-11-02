@@ -673,6 +673,16 @@ int rr_builder_present(const char *d)
     return 1;
 }
 
+int rr_builder_current(const char *d)
+{
+    char p[PATH_MAX], *txt = NULL; size_t len = 0;
+    snprintf(p, sizeof p, "%s/.rr-builder-rev", d);
+    if (rr_path_kind(p) != 1 || rr_read_text_file(p, &txt, &len, 256)) return 0;
+    int ok = len >= strlen(RR_BUILDER_REV) && !strncmp(txt, RR_BUILDER_REV, strlen(RR_BUILDER_REV));
+    free(txt);
+    return ok;
+}
+
 static int builder_url_ok(const char *url)
 {
     static const char *const ok[] = {"https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/", "https://raw.githubusercontent.com/melvindevries/Retro-Rewind-PS5-Patcher/", NULL};
@@ -755,7 +765,12 @@ int rr_install_builder(rr_ctx *c, const rr_http *h, const char *builder_dir, con
     sv_free(&files); sv_free(&dirs); sv_free(&created);
     if (!r) {
         if (!rr_builder_present(builder_dir)) r = rr_fail(c, RR_E_STATE, "the builder files are not all in place after the install");
-        else rr_logf(c, RR_LOG_INFO, "ISO builder files installed in %s", builder_dir);
+        else {
+            char mp[PATH_MAX];
+            snprintf(mp, sizeof mp, "%s/.rr-builder-rev", builder_dir);
+            if (rr_write_text_file_atomic(mp, RR_BUILDER_REV "\n", strlen(RR_BUILDER_REV) + 1)) r = rr_fail(c, RR_E_IO, "cannot write the builder revision marker");
+            else rr_logf(c, RR_LOG_INFO, "ISO builder files installed in %s", builder_dir);
+        }
     }
     return r;
 }

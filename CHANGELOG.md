@@ -1,5 +1,10 @@
 # Changelog
 
+## 01.000.002
+- Fix: "FATAL ERROR: Incompatible file (version 2), please upgrade your Kamek Loader." The builder tools are replaced with the newest official Retro Rewind builder (v6.13.4 and above, fixed2), which contains the Kamek loaders released on 30 October. The old builder files are removed from the repository (they remain in the git history only).
+- Builders installed by an earlier app version are refreshed automatically by **Check for updates**. **Patch** refuses to run with an outdated builder and says what to do.
+- The patch engine understands the new builder scripts (the Riivolution-only steps are skipped, as they are not part of the disc image).
+
 ## 01.000.001
 - Fix: patching a pack installed with Install Full Game failed with "script source ... Language/JPN/Font/Font.szs does not exist".
 - Patching no longer stops when the pack lacks optional language files (`Language/*/Font/...`). Like the official builder script, they are skipped, left as in the original game, and listed in the log. Missing core files (e.g. `Binaries/Code.pul`) still stop the patch.

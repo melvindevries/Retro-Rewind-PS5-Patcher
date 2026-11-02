@@ -37,7 +37,7 @@ zf("full_extra.zip", {**{"RetroRewind6/" + k: v for k, v in body.items()}, "Retr
 zf("full_evil.zip", {"RetroRewind6/ok.txt": b"x", "RetroRewind6/../../escape.txt": b"pwn"})
 bsc = {"copy-files.sh": b"#!/bin/sh\n", "create-rr-usa.sh": b"u", "create-rr-pal.sh": b"p", "create-rr-jpn.sh": b"j",
        "extra/Boot/Loaders/EUR/main.dol": b"E" * 3000, "extra/Boot/Loaders/USA/main.dol": b"U" * 3000, "extra/Boot/Loaders/JPN/main.dol": b"J" * 3000,
-       "extra/Boot/Loaders/KOR/": b"", "extra/Boot/Strap/Strap.szs": b"S" * 500, "extra/wiivcpatch.xml": b"<x/>", "extra/thp/banana.thp": b"T" * 800,
+       "extra/Boot/Loaders/KOR/": b"", "extra/Boot/Strap/Strap.szs": b"S" * 500, "extra/thp/banana.thp": b"T" * 800,
        "Patches/font.Font": b"F" * 300}
 junk = {"copy-files.bat": b"@echo", "ddel.exe": b"MZ" * 100, "check_update.ps1": b"x", "README.txt": b"r", "create-all.sh": b"a", "set-image-type-WBFS.sh": b"w", "create-rr-pal.bat": b"b"}
 zf("RetroRewindBuilder.zip", {**bsc, **junk})

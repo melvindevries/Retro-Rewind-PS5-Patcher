@@ -56,6 +56,10 @@ int rr_install_full(rr_ctx *c, const rr_http *h, const char *pack_dir, const cha
 #define RR_BUILDER_URL "https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/raw/main/builder/RetroRewindBuilder.zip"
 /* 1 when copy-files.sh and the three create-rr-*.sh scripts are all present directly in builder_dir */
 int rr_builder_present(const char *builder_dir);
+/* Revision of the builder files this app version ships (written to <builder>/.rr-builder-rev after an install). A builder
+ * that is present but has no matching revision came from an older app version and must be refreshed before patching. */
+#define RR_BUILDER_REV "2026-10-29"
+int rr_builder_current(const char *builder_dir);
 /* Installs the ISO builder files the patch engine needs into builder_dir (creating it and the subfolders) from the official
  * project's own builder archive (builder/ in the repository); unneeded archive members are not written. Only https URLs under
  * github.com/melvindevries/Retro-Rewind-PS5-Patcher/ or raw.githubusercontent.com/melvindevries/Retro-Rewind-PS5-Patcher/ are accepted. On failure everything this call placed is removed again. */

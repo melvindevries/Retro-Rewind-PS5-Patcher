@@ -201,6 +201,13 @@ int do_check(rr_ctx &c)
     if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
     int r = sce_http_start();
     if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
+    if (rr_builder_present(kBuilder) && !rr_builder_current(kBuilder))
+    {
+        // builder files from an older app version (outdated loaders): refresh them
+        add_log(RR_LOG_INFO, "refreshing the ISO builder files (newer loaders)");
+        r = rr_install_builder(&c, &g_http, kBuilder, RR_BUILDER_URL);
+        if (r) return r;
+    }
     std::memset(&g_us, 0, sizeof g_us);
     r = rr_update_check_ex(&c, &g_http, kPack, &g_us, 1);
     if (r) return r;
@@ -252,7 +259,7 @@ int do_full(rr_ctx &c)
     if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
     if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
     // builder files first (copy-files.sh, create-rr-*.sh, extra/, Patches/), only when they are not there yet
-    if (!rr_builder_present(kBuilder))
+    if (!rr_builder_present(kBuilder) || !rr_builder_current(kBuilder))
     {
         add_log(RR_LOG_INFO, "step 1/2: ISO builder files");
         r = rr_install_builder(&c, &g_http, kBuilder, RR_BUILDER_URL);
@@ -294,6 +301,11 @@ void *worker(void *arg)
         break;
     case J_PATCH:
     {
+        if (rr_builder_present(kBuilder) && !rr_builder_current(kBuilder))
+        {
+            r = rr_fail(&c, RR_E_STATE, "The ISO builder files are outdated (the game would show \"Incompatible file ... upgrade your Kamek Loader\"). Choose Check for updates once to refresh them, then patch again.");
+            break;
+        }
         rr_patch_cfg cfg = make_cfg(region);
         rr_patch_result res;
         std::memset(&res, 0, sizeof res);

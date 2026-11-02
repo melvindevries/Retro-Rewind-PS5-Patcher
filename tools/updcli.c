@@ -58,7 +58,7 @@ int main(int argc, char **argv)
         char url[600]; snprintf(url, sizeof url, "https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/raw/main/builder/%s", argc > 5 ? argv[5] : "RetroRewindBuilder.zip");
         int r = rr_install_builder(&c, &h, argv[2], url);
         if (r) { printf("FAILED: %s\n", c.err); return 1; }
-        printf("BUILDER-OK present=%d gets=%d\n", rr_builder_present(argv[2]), m.gets); return 0;
+        printf("BUILDER-OK present=%d current=%d gets=%d\n", rr_builder_present(argv[2]), rr_builder_current(argv[2]), m.gets); return 0;
     }
     if (!strcmp(argv[1], "full")) { /* full RR_FULL_URL-style install; argv[5] = archive file name on the mock server */
         char url[600]; snprintf(url, sizeof url, "https://update.rwfc.net/RetroRewind/zip/%s", argc > 5 ? argv[5] : "RetroRewind.zip");

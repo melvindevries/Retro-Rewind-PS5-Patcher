@@ -4,14 +4,14 @@
 **Install Full Game**:
 
 - `copy-files.sh`, `create-rr-usa.sh`, `create-rr-pal.sh`, `create-rr-jpn.sh`
-- `extra/` (loaders, strap, save banner, THP files, `wiivcpatch.xml`)
+- `extra/` (Kamek loaders, strap, save banner, THP files)
 - `Patches/`
 
-They are the **unmodified** files from the official Retro Rewind Team repository
-[Retro-Rewind-Team/iso-patcher](https://github.com/Retro-Rewind-Team/iso-patcher) (`updatedbuilder.zip`, commit `8258c71`, 2026-06-03),
-reduced to the files this app needs. The `.bat` files, `ddel.exe`, `check_update.ps1`, `create-all.*`, `set-image-type-*` and the
+They are the **unmodified** files from the official Retro Rewind builder archive
+"Retro Rewind ISO Builder (Wiimm Edition) for v6.13.4 and above, fixed2" (`Retro_Rewind_ISO_Builder_Wiimm_Edition_for_v6.13.4_and_above_fixed2.zip`, scripts dated 2026-10-29),
+reduced to the files this app needs (it includes the Kamek loaders released on 30 October 2026). The `.bat` files, `ddel.exe`, `create-all.*`, `set-image-type-*` and the
 readmes of the original archive are left out because the PS5 app does not use them.
 
 Credits and licence: see [NOTICE.md](NOTICE.md). The original files are licensed under GPL-3.0 (see [LICENSE](LICENSE)).
 
-To update them: replace the zip with the same selection from a newer `updatedbuilder.zip`, bump the commit above, and run the test suite.
+To update them: replace the zip with the same selection from the newer official archive, bump `RR_BUILDER_REV` in `core/rr_update.h` (so installed copies are refreshed), and run the test suite.

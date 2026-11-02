@@ -133,7 +133,7 @@ No proprietary runtime module, encryption key, or game file is included.
 
 
 ## Retro Rewind builder tools (builder/RetroRewindBuilder.zip)
-Redistributed unmodified, as a subset, from https://github.com/Retro-Rewind-Team/iso-patcher (`updatedbuilder.zip`, commit 8258c71),
+Redistributed unmodified, as a subset, from the Retro Rewind Team's official builder archive ("Retro Rewind ISO Builder Wiimm Edition for v6.13.4 and above fixed2"; successor of https://github.com/Retro-Rewind-Team/iso-patcher `updatedbuilder.zip`),
 GPL-3.0. Authors: Wiimm (original scripts, built on Wiimm's ISO Tools), Kote (Kote3767) and the Retro Rewind Team (current scripts,
 loaders, patches). Full credit, source and licence text: builder/NOTICE.md and builder/LICENSE.
 

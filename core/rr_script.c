@@ -325,6 +325,15 @@ static int copy_into_files(sh_t *s, const char *src_typed, const char *destrel, 
 
 static const char *base_name(const char *p) { const char *sl = strrchr(p, '/'); return sl ? sl + 1 : p; }
 
+/* The v6.13.4 builder also lays out a Riivolution copy of the pack ("./riivolution/...") for people who run the game from an
+ * SD card. That is not part of the disc image, so on the console those steps are skipped. */
+static int riivo_dest(const char *raw)
+{
+    char n[1024]; int t;
+    if (normalize(raw, n, sizeof n, &t)) return 0;
+    return !strncmp(n, "riivolution", 11) && (n[11] == 0 || n[11] == '/');
+}
+
 static int do_cp(sh_t *s, word_t *w, int nw)
 {
     int recursive = 0, i = 1;
@@ -335,6 +344,7 @@ static int do_cp(sh_t *s, word_t *w, int nw)
         }
     }
     if (nw - i < 2) return rr_fail(s->c, RR_E_FORMAT, "cp: missing operands");
+    if (riivo_dest(w[nw - 1].text)) { rr_logf(s->c, RR_LOG_INFO, "skipped (not part of the disc): cp ... %s", w[nw - 1].text); return 0; }
     /* destination */
     loc_t dl;
     int r = resolve(s, w[nw - 1].text, &dl);
@@ -411,6 +421,7 @@ static int do_mkdir(sh_t *s, word_t *w, int nw)
     if (!p) return rr_fail(s->c, RR_E_UNSUPPORTED, "mkdir without -p is not supported");
     for (; i < nw; i++) {
         loc_t l;
+        if (riivo_dest(w[i].text)) continue;
         int r = resolve(s, w[i].text, &l);
         if (r) return r;
         if (l.kind != LOC_FILES) return rr_fail(s->c, RR_E_UNSUPPORTED, "mkdir: '%s' is outside the disc file area", w[i].text);

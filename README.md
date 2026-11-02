@@ -27,7 +27,6 @@ Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 
 ## Requirements
 - A jailbroken PS5 running [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) and OnionHEN.
-- [Porpoise](https://github.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5) (Dolphin for PS5) installed on the console. This app writes the patched game to `/data/porpoise/games/`, which is where Porpoise looks for games.
 - Your own legally obtained Mario Kart Wii image as a `.wbfs` file.
 - An FTP client (or another way to copy files to the console) and an internet connection.
 - Free internal space of roughly one game image plus the Retro Rewind pack.
@@ -115,7 +114,7 @@ Always copy the address from this page. Never send funds because of a message or
 ## Credits
 - **Retro Rewind** is the work of the [Retro Rewind Team](https://rwfc.net).
 - **Builder tools** (`builder/`): scripts by **Wiimm** (built on [Wiimm's ISO Tools](https://wit.wiimm.de)), maintained as *Kote's ISO patcher for Retro Rewind* by **Kote** and the Retro Rewind Team
-  ([source](https://github.com/Retro-Rewind-Team/iso-patcher), GPL-3.0). Redistributed unmodified, see [builder/NOTICE.md](builder/NOTICE.md).
+  ([source](https://github.com/Retro-Rewind-Team/iso-patcher), GPL-3.0; current files from the official "ISO Builder Wiimm Edition for v6.13.4 and above"). Redistributed unmodified, see [builder/NOTICE.md](builder/NOTICE.md).
 - Built on [ps5-native-app-boilerplate](https://github.com/BlackBearReloaded/ps5-native-app-boilerplate) and the ps5-payload-sdk,
   with [miniz](https://github.com/richgel999/miniz) and the DejaVu font. Wiimm's ISO Tools was also used as a test reference on a PC.
 - Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
