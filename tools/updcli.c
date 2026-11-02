@@ -60,6 +60,13 @@ int main(int argc, char **argv)
         if (r) { printf("FAILED: %s\n", c.err); return 1; }
         printf("BUILDER-OK present=%d current=%d gets=%d\n", rr_builder_present(argv[2]), rr_builder_current(argv[2]), m.gets); return 0;
     }
+    if (!strcmp(argv[1], "builderrefresh")) {
+        int ref = 0;
+        int r = rr_builder_refresh(&c, &h, argv[2], "https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/raw/main/builder/RetroRewindBuilder.zip", &ref);
+        if (r) { printf("FAILED: %s\n", c.err); return 1; }
+        char mk[64] = ""; { char p[600]; snprintf(p, sizeof p, "%s/.rr-builder-rev", argv[2]); FILE *f = fopen(p, "r"); if (f) { if (!fgets(mk, sizeof mk, f)) mk[0] = 0; fclose(f); mk[strcspn(mk, "\n")] = 0; } }
+        printf("REFRESH refreshed=%d current=%d rev=%s gets=%d\n", ref, rr_builder_current(argv[2]), mk, m.gets); return 0;
+    }
     if (!strcmp(argv[1], "full")) { /* full RR_FULL_URL-style install; argv[5] = archive file name on the mock server */
         char url[600]; snprintf(url, sizeof url, "https://update.rwfc.net/RetroRewind/zip/%s", argc > 5 ? argv[5] : "RetroRewind.zip");
         int r = rr_install_full(&c, &h, argv[2], url);

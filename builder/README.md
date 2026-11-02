@@ -14,4 +14,4 @@ readmes of the original archive are left out because the PS5 app does not use th
 
 Credits and licence: see [NOTICE.md](NOTICE.md). The original files are licensed under GPL-3.0 (see [LICENSE](LICENSE)).
 
-To update them: replace the zip with the same selection from the newer official archive, bump `RR_BUILDER_REV` in `core/rr_update.h` (so installed copies are refreshed), and run the test suite.
+To publish a newer builder: replace the zip with the same selection from the newer official archive and put its date (ISO, e.g. `2026-10-29`) in `REVISION`. Installed apps read `REVISION` on **Check for updates** and download the zip again when it is newer than theirs. Only raise `RR_BUILDER_REV` in `core/rr_update.h` when an app version must refuse older builders.

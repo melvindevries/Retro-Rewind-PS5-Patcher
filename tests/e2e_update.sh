@@ -143,6 +143,20 @@ echo "$OUT" | grep -q "BUILDER-OK present=1 current=1"; ok $? "builder installed
 [ ! -e $T/bld/copy-files.bat ] && [ ! -e $T/bld/ddel.exe ] && [ ! -e $T/bld/check_update.ps1 ] && [ ! -e $T/bld/README.txt ] && [ ! -e $T/bld/create-all.sh ] && [ ! -e $T/bld/create-rr-pal.bat ]; ok $? "unneeded files not written"
 [ -z "$(leftb | tr -d ' ' | grep -v '^copy-files.sh')" ] || [ "$(leftb)" = ".rr-builder-rev Patches copy-files.sh create-rr-jpn.sh create-rr-pal.sh create-rr-usa.sh extra " ]; ok $? "no staging leftovers ($(leftb))"
 rm -f $T/bld/.rr-builder-rev; OUT=$($CLI builder $T/bld $T/srv "" RetroRewindBuilder.zip 2>$T/err); echo "$OUT" | grep -q "current=1"; ok $? "an older builder without a revision marker is refreshed and marked current"
+echo "--- 13b. builder refresh driven by REVISION in the repository"
+rm -rf $T/bld; rm -f $T/srv/REVISION
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=1 current=1 rev=2026-10-29"; ok $? "missing builder installed; REVISION unreadable -> built-in revision used"
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=0"; ok $? "up to date: nothing downloaded"
+echo 2026-10-29 > $T/srv/REVISION
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=0 current=1 rev=2026-10-29 gets=1"; ok $? "same revision published: only the small revision file is read"
+echo 2027-01-05 > $T/srv/REVISION
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=1 current=1 rev=2027-01-05"; ok $? "newer revision published: builder downloaded again and marked with it"
+echo 'garbage;rm -rf' > $T/srv/REVISION
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=0"; ok $? "invalid revision file ignored"
+echo 2020-01-01 > $T/bld/.rr-builder-rev
+OUT=$($CLI builderrefresh $T/bld $T/srv "" 2>$T/err); echo "$OUT" | grep -q "refreshed=1 current=1"; ok $? "builder older than the app expects is refreshed"
+rm -f $T/srv/REVISION
+
 rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" builder_incomplete.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "archive without the create scripts refused"
 [ ! -e $T/bld/copy-files.sh ] && [ ! -e $T/bld/extra ]; ok $? "nothing left behind after refusal"
 rm -rf $T/bld; OUT=$($CLI builder $T/bld $T/srv "" builder_evil.zip 2>$T/err); echo "$OUT" | grep -q FAILED; ok $? "unsafe builder archive refused"

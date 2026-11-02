@@ -2,7 +2,7 @@
 
 ## 01.000.002
 - Fix: "FATAL ERROR: Incompatible file (version 2), please upgrade your Kamek Loader." The builder tools are replaced with the newest official Retro Rewind builder (v6.13.4 and above, fixed2), which contains the Kamek loaders released on 30 October. The old builder files are removed from the repository (they remain in the git history only).
-- Builders installed by an earlier app version are refreshed automatically by **Check for updates**. **Patch** refuses to run with an outdated builder and says what to do.
+- **Check for updates** also reads `builder/REVISION` in this repository and downloads the builder again when a newer one is published there, so a new official builder reaches everyone without a new app version. Builders installed by an earlier app version are refreshed the same way. **Patch** refuses to run with an outdated builder and says what to do.
 - The patch engine understands the new builder scripts (the Riivolution-only steps are skipped, as they are not part of the disc image).
 
 ## 01.000.001

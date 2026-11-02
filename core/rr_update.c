@@ -673,14 +673,66 @@ int rr_builder_present(const char *d)
     return 1;
 }
 
-int rr_builder_current(const char *d)
+static int rev_valid(const char *t)
+{
+    size_t n = strlen(t);
+    if (n < 4 || n > 31) return 0;
+    for (size_t i = 0; i < n; i++) if (!((t[i] >= '0' && t[i] <= '9') || t[i] == '-' || t[i] == '.')) return 0;
+    return 1;
+}
+
+/* reads <dir>/.rr-builder-rev; returns 1 and fills out when it holds a valid revision */
+static int read_marker(const char *d, char out[32])
 {
     char p[PATH_MAX], *txt = NULL; size_t len = 0;
     snprintf(p, sizeof p, "%s/.rr-builder-rev", d);
+    out[0] = 0;
     if (rr_path_kind(p) != 1 || rr_read_text_file(p, &txt, &len, 256)) return 0;
-    int ok = len >= strlen(RR_BUILDER_REV) && !strncmp(txt, RR_BUILDER_REV, strlen(RR_BUILDER_REV));
+    size_t n = strcspn(txt, "\r\n");
+    int ok = n > 0 && n < 32;
+    if (ok) { memcpy(out, txt, n); out[n] = 0; ok = rev_valid(out); }
     free(txt);
+    if (!ok) out[0] = 0;
     return ok;
+}
+
+int rr_builder_current(const char *d)
+{
+    char m[32];
+    return read_marker(d, m) && strcmp(m, RR_BUILDER_REV) >= 0;
+}
+
+/* newest revision published in the repository; 0 when it cannot be read */
+static int fetch_remote_rev(rr_ctx *c, const rr_http *h, char out[32])
+{
+    uint8_t *mem = NULL; size_t len = 0; int status = 0; uint64_t exp = 0;
+    out[0] = 0;
+    int r = h->get(h->user, c, RR_BUILDER_REV_URL, NULL, &mem, &len, 256, &exp, &status);
+    if (r) { c->err[0] = 0; free(mem); return 0; }
+    int ok = 0;
+    if (status == 200 && mem && len > 0 && len < 64) {
+        char t[64]; memcpy(t, mem, len); t[len] = 0;
+        size_t n = strcspn(t, "\r\n"); t[n] = 0;
+        if (rev_valid(t)) { snprintf(out, 32, "%s", t); ok = 1; }
+    }
+    free(mem);
+    return ok;
+}
+
+int rr_builder_refresh(rr_ctx *c, const rr_http *h, const char *builder_dir, const char *zip_url, int *refreshed)
+{
+    char remote[32], mine[32];
+    if (refreshed) *refreshed = 0;
+    int have_remote = fetch_remote_rev(c, h, remote);
+    int have_mine = read_marker(builder_dir, mine);
+    int need;
+    if (!rr_builder_present(builder_dir)) need = 1;
+    else if (!have_mine || strcmp(mine, RR_BUILDER_REV) < 0) need = 1;
+    else need = have_remote && strcmp(mine, remote) < 0;
+    if (!need) return 0;
+    int r = rr_install_builder(c, h, builder_dir, zip_url);
+    if (!r && refreshed) *refreshed = 1;
+    return r;
 }
 
 static int builder_url_ok(const char *url)
@@ -766,9 +818,11 @@ int rr_install_builder(rr_ctx *c, const rr_http *h, const char *builder_dir, con
     if (!r) {
         if (!rr_builder_present(builder_dir)) r = rr_fail(c, RR_E_STATE, "the builder files are not all in place after the install");
         else {
-            char mp[PATH_MAX];
+            char mp[PATH_MAX], rev[32], line[40];
             snprintf(mp, sizeof mp, "%s/.rr-builder-rev", builder_dir);
-            if (rr_write_text_file_atomic(mp, RR_BUILDER_REV "\n", strlen(RR_BUILDER_REV) + 1)) r = rr_fail(c, RR_E_IO, "cannot write the builder revision marker");
+            if (!fetch_remote_rev(c, h, rev) || strcmp(rev, RR_BUILDER_REV) < 0) snprintf(rev, sizeof rev, "%s", RR_BUILDER_REV);
+            snprintf(line, sizeof line, "%s\n", rev);
+            if (rr_write_text_file_atomic(mp, line, strlen(line))) r = rr_fail(c, RR_E_IO, "cannot write the builder revision marker");
             else rr_logf(c, RR_LOG_INFO, "ISO builder files installed in %s", builder_dir);
         }
     }

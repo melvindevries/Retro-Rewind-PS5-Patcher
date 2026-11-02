@@ -201,12 +201,13 @@ int do_check(rr_ctx &c)
     if (g_us_valid) { rr_update_state_free(&g_us); g_us_valid = false; }
     int r = sce_http_start();
     if (r < 0) return rr_fail(&c, RR_E_NET, "network stack failed to start (0x%08x)", (unsigned)r);
-    if (rr_builder_present(kBuilder) && !rr_builder_current(kBuilder))
+    if (rr_builder_present(kBuilder))
     {
-        // builder files from an older app version (outdated loaders): refresh them
-        add_log(RR_LOG_INFO, "refreshing the ISO builder files (newer loaders)");
-        r = rr_install_builder(&c, &g_http, kBuilder, RR_BUILDER_URL);
+        // newer builder published in this repository, or builder files from an older app version: refresh them
+        int refreshed = 0;
+        r = rr_builder_refresh(&c, &g_http, kBuilder, RR_BUILDER_URL, &refreshed);
         if (r) return r;
+        if (refreshed) add_log(RR_LOG_INFO, "ISO builder files updated to the newest version");
     }
     std::memset(&g_us, 0, sizeof g_us);
     r = rr_update_check_ex(&c, &g_http, kPack, &g_us, 1);

@@ -60,6 +60,12 @@ int rr_builder_present(const char *builder_dir);
  * that is present but has no matching revision came from an older app version and must be refreshed before patching. */
 #define RR_BUILDER_REV "2026-10-29"
 int rr_builder_current(const char *builder_dir);
+/* URL of the small text file that names the newest builder revision (ISO date, e.g. 2026-10-29). */
+#define RR_BUILDER_REV_URL "https://github.com/melvindevries/Retro-Rewind-PS5-Patcher/raw/main/builder/REVISION"
+/* Compares the installed builder with the newest one published in this repository and downloads it when it is newer
+ * (or when the installed one is older than this app expects). If the revision file cannot be read, only the revision
+ * built into the app is enforced. *refreshed is set to 1 when a download happened. */
+int rr_builder_refresh(rr_ctx *c, const rr_http *h, const char *builder_dir, const char *zip_url, int *refreshed);
 /* Installs the ISO builder files the patch engine needs into builder_dir (creating it and the subfolders) from the official
  * project's own builder archive (builder/ in the repository); unneeded archive members are not written. Only https URLs under
  * github.com/melvindevries/Retro-Rewind-PS5-Patcher/ or raw.githubusercontent.com/melvindevries/Retro-Rewind-PS5-Patcher/ are accepted. On failure everything this call placed is removed again. */
