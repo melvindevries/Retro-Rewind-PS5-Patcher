@@ -680,7 +680,7 @@ void draw_main()
         int fw = v.total ? (int)((long long)(bw - 8) * (v.done > v.total ? v.total : v.done) / v.total) : 230;
         int fx = bx + 4;
         if (!v.total) fx += (int)((g_log_n * 37) % (bw - 250));
-        if (fw >= 28) { gfx::rrect(fx, by + 4, fw, bh - 8, 14, C_ACC, 255); for (int j = 0; j < fw; j += 4) gfx::fill_a(fx + j, by + 4, 4, bh - 8, gfx::hsv(j * 300 / (bw), 200, 255), 70); }
+        if (fw >= 28) { gfx::rrect(fx, by + 4, fw, bh - 8, 14, C_ACC, 255); }
     }
     else if (v.result[0]) wrap_text(90, 772, v.result, 2, v.result_is_error ? C_ERR : C_OK, 85, 3);
     else gfx::text(90, 772, g_v.pack_missing ? "Retro Rewind is not installed. Choose Install Full Game to download it." : "Ready. Check for updates, install them, choose a region, then patch.", 2, C_DIM);
