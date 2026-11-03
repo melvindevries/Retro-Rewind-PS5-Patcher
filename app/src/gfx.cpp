@@ -6,6 +6,9 @@
 #include "font_data.h"
 #include <cstddef>
 #include <cstring>
+#ifdef GFX_HOST
+#include <cstdio>
+#endif
 
 extern "C"
 {
@@ -41,6 +44,7 @@ std::uint8_t *g_buf[2];
 int g_video = -1;
 std::int64_t g_flip = 1;
 unsigned g_back = 1;
+std::uint32_t g_bg[W * H];               // cached static background
 std::uint32_t g_xoff[W], g_yoff[H];      // the tiled offset is x-part XOR y-part
 struct Notification { std::uint8_t reserved[45]; char message[3075]; } g_note;
 
@@ -165,4 +169,141 @@ void text(int x, int y, const char *s, int scale, std::uint32_t c, int max_chars
             }
     }
 }
+
+namespace
+{
+inline std::uint32_t mix(std::uint32_t d, std::uint32_t c, int a)
+{
+    const int ia = 255 - a;
+    const unsigned r = ((c & 0xff) * a + (d & 0xff) * ia) / 255, g = (((c >> 8) & 0xff) * a + ((d >> 8) & 0xff) * ia) / 255,
+                   b = (((c >> 16) & 0xff) * a + ((d >> 16) & 0xff) * ia) / 255;
+    return rgb(r, g, b);
+}
+} // namespace
+
+void fill_a(int x, int y, int w, int h, std::uint32_t c, int alpha)
+{
+    int x1 = x + w, y1 = y + h;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x1 > static_cast<int>(W)) x1 = W;
+    if (y1 > static_cast<int>(H)) y1 = H;
+    if (alpha <= 0) return;
+    if (alpha > 255) alpha = 255;
+    for (int j = y; j < y1; ++j)
+        for (int i = x; i < x1; ++i) g_lin[j * W + i] = mix(g_lin[j * W + i], c, alpha);
+}
+
+void rrect(int x, int y, int w, int h, int r, std::uint32_t c, int alpha)
+{
+    if (r * 2 > w) r = w / 2;
+    if (r * 2 > h) r = h / 2;
+    for (int j = 0; j < h; ++j)
+    {
+        const int py = y + j;
+        if (py < 0 || py >= static_cast<int>(H)) continue;
+        for (int i = 0; i < w; ++i)
+        {
+            const int px = x + i;
+            if (px < 0 || px >= static_cast<int>(W)) continue;
+            int cov = 255; // 1 px soft edge on the corners
+            const int cx = i < r ? r - i : (i >= w - r ? i - (w - r - 1) : 0);
+            const int cy = j < r ? r - j : (j >= h - r ? j - (h - r - 1) : 0);
+            if (cx > 0 && cy > 0)
+            {
+                const int d2 = cx * cx + cy * cy, R2 = r * r;
+                if (d2 > (r + 1) * (r + 1)) continue;
+                if (d2 > R2) cov = 255 - 255 * (d2 - R2) / ((r + 1) * (r + 1) - R2);
+            }
+            const int a = alpha * cov / 255;
+            if (a > 0) g_lin[py * W + px] = mix(g_lin[py * W + px], c, a);
+        }
+    }
+}
+
+namespace
+{
+inline bool in_rr(int i, int j, int w, int h, int r)
+{
+    if (i < 0 || j < 0 || i >= w || j >= h) return false;
+    const int cx = i < r ? r - i : (i >= w - r ? i - (w - r - 1) : 0);
+    const int cy = j < r ? r - j : (j >= h - r ? j - (h - r - 1) : 0);
+    return !(cx > 0 && cy > 0) || cx * cx + cy * cy <= r * r;
+}
+} // namespace
+
+void rrect_frame(int x, int y, int w, int h, int r, int t, std::uint32_t c)
+{
+    for (int j = 0; j < h; ++j)
+    {
+        const int py = y + j;
+        if (py < 0 || py >= static_cast<int>(H)) continue;
+        for (int i = 0; i < w; ++i)
+        {
+            const int px = x + i;
+            if (px < 0 || px >= static_cast<int>(W)) continue;
+            if (in_rr(i, j, w, h, r) && !in_rr(i - t, j - t, w - 2 * t, h - 2 * t, r > t ? r - t : 0)) g_lin[py * W + px] = c;
+        }
+    }
+}
+
+void gradient_v(int x, int y, int w, int h, std::uint32_t top, std::uint32_t bottom)
+{
+    for (int j = 0; j < h; ++j) fill(x, y + j, w, 1, mix(top, bottom, h > 1 ? j * 255 / (h - 1) : 0));
+}
+
+void blit(int x, int y, int w, int h, const std::uint8_t *p)
+{
+    for (int j = 0; j < h; ++j)
+    {
+        const int py = y + j;
+        if (py < 0 || py >= static_cast<int>(H)) continue;
+        for (int i = 0; i < w; ++i, p += 4)
+        {
+            const int px = x + i;
+            if (px < 0 || px >= static_cast<int>(W) || !p[3]) continue;
+            g_lin[py * W + px] = mix(g_lin[py * W + px], rgb(p[0], p[1], p[2]), p[3]);
+        }
+    }
+}
+
+std::uint32_t hsv(int hue, int sat, int val)
+{
+    hue %= 360;
+    const int region = hue / 60, rem = (hue % 60) * 255 / 60;
+    const int p = val * (255 - sat) / 255, q = val * (255 - sat * rem / 255) / 255, t = val * (255 - sat * (255 - rem) / 255) / 255;
+    switch (region)
+    {
+    case 0: return rgb(val, t, p);
+    case 1: return rgb(q, val, p);
+    case 2: return rgb(p, val, t);
+    case 3: return rgb(p, q, val);
+    case 4: return rgb(t, p, val);
+    default: return rgb(val, p, q);
+    }
+}
+
+void text_shadow(int x, int y, const char *s, int scale, std::uint32_t c, int max_chars)
+{
+    text(x + scale, y + scale, s, scale, rgb(0, 0, 0), max_chars);
+    text(x, y, s, scale, c, max_chars);
+}
+
+void save_background() { std::memcpy(g_bg, g_lin, sizeof g_lin); }
+void restore_background() { std::memcpy(g_lin, g_bg, sizeof g_lin); }
+#ifdef GFX_HOST
+void dump(const char *path)
+{
+    FILE *f = std::fopen(path, "wb");
+    if (!f) return;
+    std::fprintf(f, "P6\n%u %u\n255\n", W, H);
+    for (unsigned i = 0; i < W * H; ++i)
+    {
+        const std::uint32_t v = g_lin[i];
+        const unsigned char px[3] = {(unsigned char)(v & 255), (unsigned char)((v >> 8) & 255), (unsigned char)((v >> 16) & 255)};
+        std::fwrite(px, 1, 3, f);
+    }
+    std::fclose(f);
+}
+#endif
 } // namespace gfx

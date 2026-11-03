@@ -4,6 +4,8 @@
 #include "elevate.h"
 #include "gfx.h"
 #include "http_sce.h"
+#include "logo_data.h"
+#include "disc_data.h"
 #include "pad.h"
 
 #include "rr_patch.h"
@@ -375,9 +377,10 @@ void start_job(Job j)
 
 // ---- UI ----
 using gfx::rgb;
-const std::uint32_t C_BG = rgb(14, 17, 26), C_PANEL = rgb(26, 31, 46), C_TXT = rgb(228, 232, 240), C_DIM = rgb(140, 150, 170),
-                    C_ACC = rgb(80, 200, 255), C_SEL = rgb(40, 70, 110), C_OK = rgb(110, 220, 140), C_ERR = rgb(255, 110, 110),
-                    C_WARN = rgb(255, 200, 90);
+const std::uint32_t C_BG = rgb(16, 14, 34), C_PANEL = rgb(30, 27, 62), C_TXT = rgb(240, 240, 250), C_DIM = rgb(165, 165, 200),
+                    C_ACC = rgb(255, 205, 60), C_SEL = rgb(70, 62, 140), C_OK = rgb(120, 235, 150), C_ERR = rgb(255, 120, 120),
+                    C_WARN = rgb(255, 205, 90), C_LINE = rgb(70, 66, 120);
+constexpr const char *kVersion = "01.000.003"; // keep equal to contentVersion in app/sce_sys/param.json
 
 enum Item { I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG, I_FULL, I_COUNT };
 
@@ -440,15 +443,146 @@ void wrap_text(int x, int y, const char *s, int scale, std::uint32_t col, int ma
     }
 }
 
+// Static background (drawn once, then copied): dark gradient, faint rainbow checker, header band with the Retro Rewind logo.
+void build_background()
+{
+    gfx::gradient_v(0, 0, gfx::W, gfx::H, rgb(24, 20, 52), rgb(10, 9, 24));
+    // faint rainbow checkerboard over the whole screen (hue runs top to bottom, as in the Retro Rewind artwork)
+    constexpr int sq = 60;
+    for (int y = 0; y < (int)gfx::H; y += sq)
+        for (int x = 0; x < (int)gfx::W; x += sq)
+            if (((x / sq) + (y / sq)) & 1) gfx::fill_a(x, y, sq, sq, gfx::hsv(y * 300 / (int)gfx::H, 200, 255), 16);
+    // header band: stronger checker, hue runs left to right
+    constexpr int hh = 180;
+    gfx::fill_a(0, 0, gfx::W, hh, rgb(8, 6, 20), 255);
+    constexpr int hs = 45;
+    for (int y = 0; y < hh; y += hs)
+        for (int x = 0; x < (int)gfx::W; x += hs)
+        {
+            const std::uint32_t c = gfx::hsv(x * 330 / (int)gfx::W, 210, 255);
+            gfx::fill_a(x, y, hs, hs, c, (((x / hs) + (y / hs)) & 1) ? 120 : 42);
+        }
+    gfx::fill_a(0, 0, gfx::W, hh, rgb(0, 0, 0), 70);
+    for (int x = 0; x < (int)gfx::W; x += 8) gfx::fill(x, hh, 8, 6, gfx::hsv(x * 330 / (int)gfx::W, 220, 255));
+    // logo, title, disc
+    gfx::blit(50, 34, LOGO_W, LOGO_H, logo_rgba);
+    gfx::blit(1920 - 60 - DISC_W, 14, DISC_W, DISC_H, disc_rgba);
+    gfx::text_shadow(50 + LOGO_W + 50, 40, "PS5 Patcher", 4, C_TXT);
+    gfx::text_shadow(50 + LOGO_W + 50, 112, "Update and patch Mario Kart Wii: Retro Rewind on your PS5", 1, C_DIM);
+    char ver[48];
+    std::snprintf(ver, sizeof ver, "v%s   PPSA97531", kVersion);
+    gfx::text_shadow(1920 - 60 - DISC_W - 30 - gfx::text_w(ver, 1), 140, ver, 1, C_DIM);
+    gfx::save_background();
+}
+bool g_bg_ready = false;
+void begin_frame()
+{
+    if (!g_bg_ready) { build_background(); g_bg_ready = true; }
+    gfx::restore_background();
+}
+
+void panel(int x, int y, int w, int h, const char *title)
+{
+    gfx::rrect(x + 4, y + 6, w, h, 18, rgb(0, 0, 0), 70); // soft shadow
+    gfx::rrect(x, y, w, h, 18, C_PANEL, 235);
+    gfx::rrect_frame(x, y, w, h, 18, 2, C_LINE);
+    if (title)
+    {
+        gfx::text(x + 26, y + 14, title, 1, C_ACC);
+        gfx::fill(x + 26, y + 38, w - 52, 2, C_LINE);
+    }
+}
+
+// ---- PlayStation button glyphs, drawn with shapes (no text, no extra artwork) ----
+enum Glyph { G_CROSS, G_CIRCLE, G_SQUARE, G_TRIANGLE, G_OPTIONS, G_LR, G_UD, G_L1R1 };
+const int kBtn = 34;
+
+void tri_fill(int cx, int top, int w, int h, bool down, std::uint32_t c) // isoceles triangle, w wide, h high
+{
+    for (int j = 0; j < h; ++j)
+    {
+        const int rw = down ? w * (h - j) / h : w * (j + 1) / h;
+        gfx::fill(cx - rw / 2, top + j, rw > 0 ? rw : 1, 1, c);
+    }
+}
+void tri_side(int left, int cy, int h, int w, bool point_left, std::uint32_t c) // triangle pointing left/right
+{
+    for (int i = 0; i < w; ++i)
+    {
+        const int rh = point_left ? h * (i + 1) / w : h * (w - i) / w;
+        gfx::fill(left + i, cy - rh / 2, 1, rh > 0 ? rh : 1, c);
+    }
+}
+void thick_line(int x0, int y0, int x1, int y1, int t, std::uint32_t c)
+{
+    const int n = (x1 - x0 > 0 ? x1 - x0 : x0 - x1) + 1;
+    for (int i = 0; i < n; ++i)
+    {
+        const int x = x0 + (x1 - x0) * i / (n - 1 ? n - 1 : 1), y = y0 + (y1 - y0) * i / (n - 1 ? n - 1 : 1);
+        gfx::rrect(x - t / 2, y - t / 2, t, t, t / 2, c, 255);
+    }
+}
+
+// draws a glyph at x,y (top-left); returns its width
+int glyph(int x, int y, int g)
+{
+    const std::uint32_t dark = rgb(14, 12, 30), pill = rgb(48, 44, 96), white = rgb(235, 235, 250);
+    const int s = kBtn;
+    switch (g)
+    {
+    case G_CROSS: case G_CIRCLE: case G_SQUARE: case G_TRIANGLE:
+    {
+        gfx::rrect(x, y, s, s, s / 2, dark, 255);
+        gfx::rrect_frame(x, y, s, s, s / 2, 2, rgb(120, 118, 170));
+        const int cx = x + s / 2, cy = y + s / 2;
+        if (g == G_CROSS) { const std::uint32_t c = rgb(110, 170, 255); thick_line(cx - 7, cy - 7, cx + 7, cy + 7, 4, c); thick_line(cx - 7, cy + 7, cx + 7, cy - 7, 4, c); }
+        else if (g == G_CIRCLE) gfx::rrect_frame(cx - 8, cy - 8, 16, 16, 8, 3, rgb(255, 110, 110));
+        else if (g == G_SQUARE) gfx::rrect_frame(cx - 8, cy - 8, 16, 16, 2, 3, rgb(255, 150, 215));
+        else { const std::uint32_t c = rgb(110, 225, 150); tri_fill(cx, cy - 9, 20, 17, false, c); tri_fill(cx, cy - 4, 8, 7, true, dark); }
+        return s;
+    }
+    case G_OPTIONS:
+    {
+        gfx::rrect(x, y + 4, s + 6, s - 8, (s - 8) / 2, pill, 255);
+        for (int i = 0; i < 3; ++i) gfx::fill(x + 11, y + 11 + i * 5, s - 16, 2, white);
+        return s + 6;
+    }
+    case G_LR: case G_UD:
+    {
+        const int pw = g == G_LR ? s + 30 : s + 6;
+        gfx::rrect(x, y + 2, pw, s - 4, (s - 4) / 2, pill, 255);
+        const int cy = y + s / 2;
+        if (g == G_LR) { tri_side(x + 12, cy, 16, 9, true, white); tri_side(x + pw - 21, cy, 16, 9, false, white); }
+        else { tri_fill(x + pw / 2, cy - 10, 14, 8, false, white); tri_fill(x + pw / 2, cy + 3, 14, 8, true, white); }
+        return pw;
+    }
+    default: // L1 / R1
+    {
+        gfx::rrect(x, y + 2, s + 44, s - 4, (s - 4) / 2, pill, 255);
+        gfx::text(x + 12, y + 6, "L1", 1, white);
+        gfx::text(x + s + 44 - 12 - 20, y + 6, "R1", 1, white);
+        gfx::text(x + s / 2 + 22 - 5, y + 6, "/", 1, rgb(150, 148, 200));
+        return s + 44;
+    }
+    }
+}
+
+// a glyph followed by its label
+void chip(int &x, int y, int g, const char *label)
+{
+    const int w = glyph(x, y, g);
+    gfx::text(x + w + 12, y + 6, label, 1, C_DIM);
+    x += w + 12 + gfx::text_w(label, 1) + 40;
+}
+
 void draw_log_view()
 {
-    gfx::fill(0, 0, gfx::W, gfx::H, C_BG);
-    gfx::text(60, 30, "Diagnostic log", 2, C_ACC);
-    gfx::text(60, 80, "Up/Down scroll   Circle back", 1, C_DIM);
-    gfx::text(60, 100, kLogFile, 1, C_DIM);
+    begin_frame();
+    panel(60, 215, 1800, 800, "DIAGNOSTIC LOG");
+    gfx::text(1860 - 26 - gfx::text_w(kLogFile, 1), 229, kLogFile, 1, C_DIM);
     pthread_mutex_lock(&g_mu);
     const int total = g_log_n < kLogLines ? g_log_n : kLogLines;
-    const int rows = 40;
+    const int rows = 30;
     if (g_log_scroll > total - rows) g_log_scroll = total > rows ? total - rows : 0;
     if (g_log_scroll < 0) g_log_scroll = 0;
     for (int r = 0; r < rows; ++r)
@@ -457,9 +591,13 @@ void draw_log_view()
         if (idx < 0 || idx < g_log_n - kLogLines) continue;
         const char *l = g_log[idx % kLogLines];
         const std::uint32_t col = l[1] == 'E' ? C_ERR : l[1] == 'W' ? C_WARN : C_TXT;
-        gfx::text(60, 140 + r * 22, l, 1, col, 180);
+        gfx::text(90, 268 + r * 24, l, 1, col, 168);
     }
     pthread_mutex_unlock(&g_mu);
+    int cx = 70;
+    chip(cx, 1026, G_UD, "scroll");
+    chip(cx, 1026, G_L1R1, "page");
+    chip(cx, 1026, G_CIRCLE, "back");
 }
 
 void draw_main()
@@ -476,77 +614,96 @@ void draw_main()
     pthread_mutex_unlock(&g_mu);
     const int busy = g_busy;
 
-    gfx::fill(0, 0, gfx::W, gfx::H, C_BG);
-    gfx::text(60, 28, "MKWII Retro Rewind Patcher", 3, C_ACC);
-    gfx::text(60, 100, "Mario Kart Wii - Retro Rewind updater and patcher, running fully on this console", 1, C_DIM);
-    gfx::text(1500, 40, "PPSA97531", 2, C_DIM);
+    begin_frame();
 
-    // menu
-    gfx::fill(60, 150, 700, 520, C_PANEL);
+    // ---- menu ----
+    panel(60, 215, 700, 520, "MENU");
     int order[I_COUNT];
     const int nmenu = menu_items(order);
-    const int pitch = nmenu > 6 ? 66 : 76, rowh = nmenu > 6 ? 58 : 64;
+    const int pitch = 62, rowh = 54;
     for (int k = 0; k < nmenu; ++k)
     {
         const int i = order[k];
-        const int y = 170 + k * pitch;
-        if (i == g_sel) { gfx::fill(70, y - 8, 680, rowh, C_SEL); gfx::frame(70, y - 8, 680, rowh, 2, C_ACC); }
+        const int y = 268 + k * pitch;
+        const bool sel = i == g_sel;
         char buf[128];
         if (i == I_REGION) std::snprintf(buf, sizeof buf, "< %s >", region_name(v.region));
         else if (i == I_FULL && !v.pack_missing) std::snprintf(buf, sizeof buf, "Install Full Game (installed)");
         else std::snprintf(buf, sizeof buf, "%s", item_label(i));
         const bool dis = (busy && i != I_LOG) || (i == I_FULL && !v.pack_missing);
+        if (sel)
+        {
+            gfx::rrect(78, y, 664, rowh, 14, C_SEL, 255);
+            gfx::rrect_frame(78, y, 664, rowh, 14, 2, C_ACC);
+            for (int j = 0; j < rowh - 16; ++j) gfx::fill(90, y + 8 + j, 6, 1, gfx::hsv(j * 300 / (rowh - 16), 200, 255));
+        }
+        const int tx = sel ? 112 : 100;
         if (i == I_REGION)
         {
-            gfx::text(90, y - 4, "Region", 1, C_DIM);
-            gfx::text(90, y + 14, buf, 2, dis ? C_DIM : (v.region ? C_TXT : C_WARN));
+            char rb[96];
+            std::snprintf(rb, sizeof rb, "Region: %s", buf);
+            gfx::text(tx, y + 7, rb, 2, dis ? C_DIM : (v.region ? C_TXT : C_WARN), 30);
         }
-        else gfx::text(90, y + 8, buf, 2, dis ? C_DIM : C_TXT, 30);
+        else gfx::text(tx, y + 7, buf, 2, dis ? C_DIM : C_TXT, 30);
     }
-    gfx::text(70, 640, busy ? "Circle: cancel the running job" : "Cross: select   Left/Right: region", 1, C_DIM);
 
-    // status
-    gfx::fill(800, 150, 1060, 520, C_PANEL);
-    int y = 170;
+    // ---- status ----
+    panel(790, 215, 1070, 520, "STATUS");
+    int y = 270;
     auto row = [&](const char *k, const char *val, std::uint32_t col) {
-        gfx::text(830, y, k, 2, C_DIM);
+        gfx::text(826, y, k, 2, C_DIM);
         gfx::text(1130, y, val, 2, col, 36);
-        y += 48;
+        y += 46;
     };
-    row("Installed:", v.installed, C_TXT);
-    row("Latest:", v.latest, C_TXT);
-    row("Updates:", v.update_note, std::strcmp(v.update_note, "up to date") == 0 ? C_OK : C_TXT);
-    row("Access:", v.access_ok ? "OK (can use /data)" : "NO ACCESS to /data", v.access_ok ? C_OK : C_ERR);
-    if (!v.access_ok) { wrap_text(850, y - 4, v.access_line, 1, C_WARN, 95, 2); y += 52; }
-    gfx::text(830, y, "Base game:", 2, C_DIM); y += 40;
-    wrap_text(850, y, v.base_line, 1, v.base_ok ? C_OK : C_ERR, 95, 3); y += 84;
-    gfx::text(830, y, "Output:", 2, C_DIM); y += 40;
-    wrap_text(850, y, v.out_line, 1, C_TXT, 95, 2);
+    row("Installed", v.installed, C_TXT);
+    row("Latest", v.latest, C_TXT);
+    row("Updates", v.update_note, std::strcmp(v.update_note, "up to date") == 0 ? C_OK : C_TXT);
+    row("Access", v.access_ok ? "OK (can use /data)" : "NO ACCESS to /data", v.access_ok ? C_OK : C_ERR);
+    if (!v.access_ok) { wrap_text(826, y - 4, v.access_line, 1, C_WARN, 95, 2); y += 52; }
+    gfx::fill(826, y + 4, 1000, 2, C_LINE); y += 20;
+    gfx::text(826, y, "Base game", 2, C_DIM); y += 40;
+    wrap_text(846, y, v.base_line, 1, v.base_ok ? C_OK : C_ERR, 95, 3); y += 84;
+    gfx::text(826, y, "Output", 2, C_DIM); y += 40;
+    wrap_text(846, y, v.out_line, 1, C_TXT, 95, 2);
 
-    // progress / result
-    gfx::fill(60, 700, 1800, 150, C_PANEL);
+    // ---- progress / result ----
+    panel(60, 755, 1800, 140, nullptr);
     if (busy)
     {
         char buf[160];
         const int pct = v.total ? (int)(v.done * 100 / v.total) : 0;
         if (v.total) std::snprintf(buf, sizeof buf, "%s  %d%%", v.phase[0] ? v.phase : "working", pct);
         else std::snprintf(buf, sizeof buf, "%s ...", v.phase[0] ? v.phase : "working");
-        gfx::text(90, 720, buf, 2, C_ACC);
-        gfx::frame(90, 780, 1740, 36, 2, C_DIM);
-        if (v.total) gfx::fill(94, 784, (int)(1732ull * (v.done > v.total ? v.total : v.done) / v.total), 28, C_ACC);
-        else gfx::fill(94 + (int)((g_log_n * 37) % 1500), 784, 230, 28, C_ACC);
+        gfx::text(90, 772, buf, 2, C_ACC);
+        const int bx = 90, by = 822, bw = 1740, bh = 36;
+        gfx::rrect(bx, by, bw, bh, 18, rgb(12, 10, 28), 255);
+        int fw = v.total ? (int)((long long)(bw - 8) * (v.done > v.total ? v.total : v.done) / v.total) : 230;
+        int fx = bx + 4;
+        if (!v.total) fx += (int)((g_log_n * 37) % (bw - 250));
+        if (fw >= 28) { gfx::rrect(fx, by + 4, fw, bh - 8, 14, C_ACC, 255); for (int j = 0; j < fw; j += 4) gfx::fill_a(fx + j, by + 4, 4, bh - 8, gfx::hsv(j * 300 / (bw), 200, 255), 70); }
     }
-    else if (v.result[0]) wrap_text(90, 720, v.result, 2, v.result_is_error ? C_ERR : C_OK, 85, 3);
-    else gfx::text(90, 720, g_v.pack_missing ? "Retro Rewind is not installed. Choose Install Full Game to download it." : "Ready. Check for updates, install them, choose a region, then patch.", 2, C_DIM);
+    else if (v.result[0]) wrap_text(90, 772, v.result, 2, v.result_is_error ? C_ERR : C_OK, 85, 3);
+    else gfx::text(90, 772, g_v.pack_missing ? "Retro Rewind is not installed. Choose Install Full Game to download it." : "Ready. Check for updates, install them, choose a region, then patch.", 2, C_DIM);
+    if (!busy) gfx::text(90, 862, "Safe by design: your base image is only read, and a failed patch never replaces a valid output.", 1, C_DIM);
 
-    // log tail
-    gfx::text(60, 880, "Log", 1, C_DIM);
+    // ---- log tail ----
+    gfx::text(70, 912, "LOG", 1, C_ACC);
     for (int i = 0; i < 3; ++i)
     {
         const char *l = lastlog[i];
-        gfx::text(60, 906 + i * 24, l, 1, l[1] == 'E' ? C_ERR : l[1] == 'W' ? C_WARN : C_DIM, 180);
+        gfx::text(70, 938 + i * 24, l, 1, l[1] == 'E' ? C_ERR : l[1] == 'W' ? C_WARN : C_DIM, 180);
     }
-    gfx::text(60, 1010, "Square: refresh status / retry access    Options: view log    Safe by design: your base image is only read, and a failed patch never replaces a valid output.", 1, C_DIM, 190);
+
+    // ---- controls ----
+    int cx = 70;
+    if (busy) chip(cx, 1026, G_CIRCLE, "cancel the running job");
+    else
+    {
+        chip(cx, 1026, G_CROSS, "select");
+        chip(cx, 1026, G_LR, "region");
+        chip(cx, 1026, G_SQUARE, "refresh status / retry access");
+        chip(cx, 1026, G_OPTIONS, "view log");
+    }
 }
 
 void activate(int item)
@@ -747,3 +904,27 @@ void app_run()
         gfx::wait_vblank();
     }
 }
+
+#ifdef UI_PREVIEW
+// Host-only: renders the screens to PPM files for design review (see tools/uipreview.sh).
+void ui_preview(const char *dir)
+{
+    char p[512];
+    g_v.pack_missing = false; g_v.access_ok = true; g_v.region = 'P'; g_v.base_ok = true;
+    std::snprintf(g_v.installed, sizeof g_v.installed, "6.13.4"); std::snprintf(g_v.latest, sizeof g_v.latest, "6.13.4");
+    std::snprintf(g_v.update_note, sizeof g_v.update_note, "up to date");
+    std::snprintf(g_v.base_line, sizeof g_v.base_line, "found, PAL release (RMCP01)");
+    std::snprintf(g_v.out_line, sizeof g_v.out_line, "RMCPTO.wbfs present, 3.27 GiB, up to date with current inputs");
+    std::snprintf(g_v.result, sizeof g_v.result, "Patched and verified: /data/porpoise/games/RMCPTO.wbfs (3.27 GiB, 4380 files).");
+    for (int i = 0; i < 6; ++i) add_log(i == 4 ? RR_LOG_WARN : RR_LOG_INFO, i == 4 ? "an optional file is missing" : "Reading base image");
+    g_sel = I_PATCH;
+    draw_main(); std::snprintf(p, sizeof p, "%s/main.ppm", dir); gfx::dump(p);
+    g_busy = J_PATCH; g_v.total = 1000; g_v.done = 420; std::snprintf(g_v.phase, sizeof g_v.phase, "Building RMCPTO");
+    draw_main(); std::snprintf(p, sizeof p, "%s/busy.ppm", dir); gfx::dump(p);
+    g_busy = J_NONE; g_v.pack_missing = true; g_v.access_ok = false; g_v.base_ok = false; g_v.result[0] = 0; g_v.region = 0; g_sel = I_FULL;
+    std::snprintf(g_v.installed, sizeof g_v.installed, "not installed");
+    std::snprintf(g_v.base_line, sizeof g_v.base_line, "no game image found in base folder");
+    draw_main(); std::snprintf(p, sizeof p, "%s/empty.ppm", dir); gfx::dump(p);
+    draw_log_view(); std::snprintf(p, sizeof p, "%s/log.ppm", dir); gfx::dump(p);
+}
+#endif

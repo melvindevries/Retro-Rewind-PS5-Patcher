@@ -1,5 +1,7 @@
 <p align="center"><img src="docs/img/banner.png" alt="MKWII Retro Rewind Patcher for PS5" width="100%"></p>
 
+<p align="center"><img src="docs/img/ui.png" alt="Main screen" width="760"></p>
+
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/melvindevries/Retro-Rewind-PS5-Patcher?label=release&color=ffc446" alt="release"></a>
   <img src="https://img.shields.io/badge/platform-PS5%20homebrew-003791" alt="PS5 homebrew">

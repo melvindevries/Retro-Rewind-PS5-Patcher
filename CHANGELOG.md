@@ -1,5 +1,10 @@
 # Changelog
 
+## 01.000.003
+- New look: Retro Rewind logo and disc artwork in the header, a rainbow checker background, rounded panels, a gradient progress bar.
+- Controls at the bottom of the screen are shown as PlayStation button symbols instead of words.
+- No change to patching or updating.
+
 ## 01.000.002
 - Fix: "FATAL ERROR: Incompatible file (version 2), please upgrade your Kamek Loader." The builder tools are replaced with the newest official Retro Rewind builder (v6.13.4 and above, fixed2), which contains the Kamek loaders released on 30 October. The old builder files are removed from the repository (they remain in the git history only).
 - **Check for updates** also reads `builder/REVISION` in this repository and downloads the builder again when a newer one is published there, so a new official builder reaches everyone without a new app version. Builders installed by an earlier app version are refreshed the same way. 
