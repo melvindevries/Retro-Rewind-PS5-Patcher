@@ -3,6 +3,7 @@
 ## 01.000.003
 - New look: Retro Rewind logo and disc artwork in the header, a rainbow checker background, rounded panels, a gradient progress bar.
 - Controls at the bottom of the screen are shown as PlayStation button symbols instead of words.
+- New home-screen background (`pic0`/`pic1`, 3840x2160 BC7) with the Retro Rewind logo and disc, shown when the app is selected on the PS5 home screen.
 - No change to patching or updating.
 
 ## 01.000.002
