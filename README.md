@@ -106,12 +106,13 @@ Releases are built by GitHub Actions when a version tag such as `01.000.000` is 
 ## Support the project
 This is free and open source. If it saved you time and you want to say thanks, you can donate:
 
-| Network | Address |
+| Method | Link / address |
 |---|---|
+| **Ko-fi** | [ko-fi.com/melvindevries](https://ko-fi.com/melvindevries) |
 | **Solana (SOL)** | `CzbwBTYjgYPbny5zdjVJKrrtySVWdUvSWYYtC2x9qSB` |
 | **Ethereum (ETH)** | `0x8146E8855096C19BaF164FFF88326d5062863C6f` |
 
-Always copy the address from this page. Never send funds because of a message or comment from someone else.
+Always copy crypto addresses from this page. Never send funds because of a message or comment from someone else.
 
 ## Credits
 - **Retro Rewind** is the work of the [Retro Rewind Team](https://rwfc.net).
