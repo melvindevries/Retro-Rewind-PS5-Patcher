@@ -35,6 +35,7 @@ run status | grep -q 'out_current=1'; ok $? "status still current before rerun (
 run patch | grep -q '^PATCHED'; ok $? "changed pack input triggers rebuild"
 [ "$(sum $OUT)" != "$GOOD" ]; ok $? "rebuilt output differs"
 run verify | grep -q 'VERIFY OK'; ok $? "rebuilt output verifies"
+[ "$(ls "$(dirname $OUT)" | grep -c "wbfs$")" = 1 ]; ok $? "the rebuild replaced the old image: exactly one .wbfs file, no .part, no copy"
 
 echo "--- 4. failed patch keeps previous valid output"
 KEEP=$(sum $OUT)

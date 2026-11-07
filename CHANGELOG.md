@@ -1,5 +1,9 @@
 # Changelog
 
+## 01.000.004
+- Fix: after an update and a new patch, the game could show up twice (two files named like `RMCPTO.wbfs` in `/data/porpoise/games`, one old and one new). The finished image is now put in place by first removing every older file with that name (and any duplicate entries) and then moving the new, verified image into place. This applies to all regions. If the move ever fails, the finished image is kept as `<name>.wbfs.part` instead of being deleted.
+- A warning appears in the log if the console still lists the file more than once.
+
 ## 01.000.003
 - New look: Retro Rewind logo and disc artwork in the header, a rainbow checker background, rounded panels, a gradient progress bar.
 - Controls at the bottom of the screen are shown as PlayStation button symbols instead of words.

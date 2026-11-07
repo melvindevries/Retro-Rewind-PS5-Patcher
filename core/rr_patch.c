@@ -45,6 +45,33 @@ static int looks_wbfs(const char *path)
     return ok;
 }
 
+/* how many entries of a folder carry exactly this name (a listing can show a name twice on this console) */
+static int count_named(const char *dir, const char *name)
+{
+    int n = 0;
+    rr_dir *d = rr_opendir(dir);
+    if (!d) return 0;
+    const char *e;
+    while ((e = rr_readdir(d))) if (!strcmp(e, name)) n++;
+    rr_closedir(d);
+    return n;
+}
+
+/* Puts the finished image in place. The new image is already complete and verified, so any older copy (and any duplicate entries
+ * with the same name that this console's file system may have created) is removed first and the new one is renamed into place.
+ * If the rename fails, the finished image stays as <name>.part and is not deleted. */
+static int install_output(rr_ctx *c, const char *part, const char *opath, const char *dir, const char *name)
+{
+    int removed = 0;
+    while (removed < 16 && unlink(opath) == 0) removed++;
+    if (removed > 1) rr_logf(c, RR_LOG_WARN, "removed %d older files named %s", removed, name);
+    else if (removed == 1) rr_logf(c, RR_LOG_INFO, "replacing the previous %s", name);
+    if (rename(part, opath) != 0) return RR_E_IO;
+    int n = count_named(dir, name);
+    if (n > 1) rr_logf(c, RR_LOG_WARN, "%s is listed %d times in %s", name, n, dir);
+    return 0;
+}
+
 typedef struct { int nwbfs, nother; char found[PATH_MAX], other[256], saw[300]; int nsaw; } scan_t;
 
 static void scan_dir(const char *dir, const char *rel, int depth, scan_t *sc)
@@ -390,7 +417,7 @@ int rr_patch_run(rr_ctx *c, const rr_patch_cfg *cfg_in, int force, rr_patch_resu
     char opath[PATH_MAX], part[PATH_MAX], mpath[PATH_MAX], fp[41];
     out_path(cfg, opath, sizeof opath); meta_path(cfg, mpath, sizeof mpath);
     snprintf(part, sizeof part, "%s.part", opath);
-    int wopen = 0;
+    int wopen = 0, keep_part = 0;
     if (rr_mkdir_p(cfg->out_dir)) { r = rr_fail(c, RR_E_IO, "cannot create output folder %s", cfg->out_dir); goto out; }
     unlink(part); /* stale temp file from an interrupted run */
 
@@ -447,12 +474,21 @@ int rr_patch_run(rr_ctx *c, const rr_patch_cfg *cfg_in, int force, rr_patch_resu
         snprintf(was, sizeof was, "%llu", (unsigned long long)w.file_size);
         if (strcmp(chk, was)) { unlink(part); r = rr_fail(c, RR_E_STATE, "the base image changed while patching; try again"); goto out; }
     }
-    if (rr_rename_over(part, opath)) { r = rr_fail(c, RR_E_IO, "could not move the finished image into place: %s", strerror(errno)); unlink(part); goto out; }
+    {
+        char oname[64];
+        snprintf(oname, sizeof oname, "%s.wbfs", dest);
+        if (install_output(c, part, opath, cfg->out_dir, oname)) {
+            r = rr_fail(c, RR_E_IO, "could not move the finished image into place: %s. The finished image was kept as %s", strerror(errno), part);
+            keep_part = 1;
+            goto out;
+        }
+    }
     fsync_dir(cfg->out_dir);
     {
         rr_fileinfo st; rr_stat(opath, 1, &st);
         char m[512];
         int n = snprintf(m, sizeof m, "fingerprint=%s\nsize=%llu\nmtime=%lld\nregion=%c\ndisc=%s\n", fp, (unsigned long long)st.st_size, (long long)st.mtime, cfg->region, dest);
+        unlink(mpath);
         if (rr_write_text_file_atomic(mpath, m, (size_t)n)) rr_logf(c, RR_LOG_WARN, "could not write state file %s (the image itself is fine)", mpath);
         res->out_size = (uint64_t)st.st_size;
     }
@@ -461,7 +497,7 @@ int rr_patch_run(rr_ctx *c, const rr_patch_cfg *cfg_in, int force, rr_patch_resu
     rr_logf(c, RR_LOG_INFO, "Done: %s", opath);
     r = 0;
 out:
-    if (r) unlink(part);
+    if (r && !keep_part) unlink(part);
     if (wopen) wbfs_img_close(&w);
     wii_fst_free(&f); wii_part_free(&p); rr_vt_free(&t);
     free(script);

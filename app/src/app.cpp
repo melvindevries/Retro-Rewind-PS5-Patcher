@@ -380,7 +380,7 @@ using gfx::rgb;
 const std::uint32_t C_BG = rgb(16, 14, 34), C_PANEL = rgb(30, 27, 62), C_TXT = rgb(240, 240, 250), C_DIM = rgb(165, 165, 200),
                     C_ACC = rgb(255, 205, 60), C_SEL = rgb(70, 62, 140), C_OK = rgb(120, 235, 150), C_ERR = rgb(255, 120, 120),
                     C_WARN = rgb(255, 205, 90), C_LINE = rgb(70, 66, 120);
-constexpr const char *kVersion = "01.000.003"; // keep equal to contentVersion in app/sce_sys/param.json
+constexpr const char *kVersion = "01.000.004"; // keep equal to contentVersion in app/sce_sys/param.json
 
 enum Item { I_CHECK, I_INSTALL, I_REGION, I_PATCH, I_VERIFY, I_LOG, I_FULL, I_COUNT };
 
