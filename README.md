@@ -17,11 +17,15 @@
 A native PS5 app. It installs the official [Retro Rewind](https://rwfc.net) pack, keeps it up to date, and builds a patched
 Mario Kart Wii `.wbfs` from **your own** copy of the game. No PC needed.
 
+> **This is not a port or a recompilation of Mario Kart Wii.** It is a tool: it installs and updates Retro Rewind and patches
+> your own game image on the PS5. To play the patched game you need an emulator such as **Porpoise** (Dolphin for PS5), which is
+> not included in this app. No game files are included either.
+
 ## Features
 - **Install Full Game:** one button installs everything Retro Rewind needs when it is missing: the builder tools from this repository (`builder/`) and the complete official pack. All folders are created for you.
 - **Updates:** checks the official server and installs only the newest update, merged into your pack (files replaced or added, nothing else touched).
 - **Patching:** builds `RMCETO` (USA), `RMCPTO` (PAL) or `RMCJTO` (Japan) after you pick the region.
-- **Safe:** your original image is only ever read. A failed patch never overwrites a good output (temporary file, full verify, then atomic rename).
+- **Safe:** your original image is only ever read. A failed patch never overwrites a good output (temporary file, full verify, then the finished image is moved into place).
 - **Verify:** re-check the finished image from the menu.
 - **Internal storage only:** everything lives in `/data/porpoise/...`, nothing on USB.
 - **Any file name:** any `.wbfs` in the base folder is accepted.
