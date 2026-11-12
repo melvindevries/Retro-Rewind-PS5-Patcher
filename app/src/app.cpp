@@ -54,7 +54,7 @@ struct View
     char phase[64] = "", result[300] = "";
     bool result_is_error = false;
     std::uint64_t done = 0, total = 0;
-    double elapsed_s = 0, eta_s = -1; // time spent in this phase / smoothed estimate of the time left (-1 = not known yet)
+    double elapsed_s = 0, eta_s = -1, rate = 0; // time spent in this phase / smoothed estimate of the time left (-1 = not known yet)
     int pending = -1;
     char region = 0; // 'E','P','J' or 0 = not chosen
     bool base_ok = false;
@@ -113,7 +113,7 @@ void progress_cb(void *, const char *phase, std::uint64_t done, std::uint64_t to
 {
     pthread_mutex_lock(&g_mu);
     const double t = now_s();
-    if (std::strcmp(g_ph_name, phase) != 0 || (double)done < g_ph_done0 || !total)
+    if (std::strcmp(g_ph_name, phase) != 0 || (double)done < g_ph_done0)
     {
         std::snprintf(g_ph_name, sizeof g_ph_name, "%s", phase);
         g_ph_t0 = t;
@@ -125,6 +125,7 @@ void progress_cb(void *, const char *phase, std::uint64_t done, std::uint64_t to
     g_v.total = total;
     g_v.elapsed_s = t - g_ph_t0;
     const double moved = (double)done - g_ph_done0;
+    g_v.rate = g_v.elapsed_s >= 1.0 ? moved / g_v.elapsed_s : 0;
     if (total && g_v.elapsed_s >= 6.0 && moved >= 0.01 * (double)total && done <= total)
     {
         const double est = g_v.elapsed_s * ((double)total - (double)done) / moved;
@@ -386,6 +387,7 @@ void *worker(void *arg)
     g_v.done = g_v.total = 0;
     g_v.eta_s = -1;
     g_v.elapsed_s = 0;
+    g_v.rate = 0;
     g_ph_name[0] = 0;
     pthread_mutex_unlock(&g_mu);
     g_busy = J_NONE;
@@ -715,17 +717,22 @@ void draw_main()
         if (v.total) std::snprintf(buf, sizeof buf, "%s  %d%%", v.phase[0] ? v.phase : "working", pct);
         else std::snprintf(buf, sizeof buf, "%s ...", v.phase[0] ? v.phase : "working");
         gfx::text(90, 772, buf, 2, C_ACC);
-        if (v.total)
         {
-            char tl[96], d[32], e[32];
+            char tl[120], d[32], e[32];
             fmt_duration(v.elapsed_s < 1 ? 1 : v.elapsed_s, e, sizeof e);
-            if (v.eta_s >= 0)
+            const bool dl = std::strcmp(v.phase, "Downloading") == 0;
+            char sp[40] = "";
+            if (dl && v.rate > 0) std::snprintf(sp, sizeof sp, "%.1f MB/s   ", v.rate / 1048576.0);
+            tl[0] = 0;
+            if (v.total && v.eta_s >= 0)
             {
                 fmt_duration(v.eta_s, d, sizeof d);
-                std::snprintf(tl, sizeof tl, "about %s left   (%s elapsed)", d, e);
+                std::snprintf(tl, sizeof tl, "%sabout %s left   (%s elapsed)", sp, d, e);
             }
-            else std::snprintf(tl, sizeof tl, "estimating time left ...   (%s elapsed)", e);
-            gfx::text(1830 - gfx::text_w(tl, 1) , 782, tl, 1, C_TXT);
+            else if (v.total) std::snprintf(tl, sizeof tl, "%sestimating time left ...   (%s elapsed)", sp, e);
+            else if (dl && v.done) std::snprintf(tl, sizeof tl, "%.0f MB downloaded   %s(%s elapsed)", (double)v.done / 1048576.0, sp, e);
+            else if (dl) std::snprintf(tl, sizeof tl, "connecting ...");
+            if (tl[0]) gfx::text(1830 - gfx::text_w(tl, 1), 782, tl, 1, C_TXT);
         }
         const int bx = 90, by = 822, bw = 1740, bh = 36;
         gfx::rrect(bx, by, bw, bh, 18, rgb(12, 10, 28), 255);
@@ -973,6 +980,8 @@ void ui_preview(const char *dir)
     draw_main(); std::snprintf(p, sizeof p, "%s/main.ppm", dir); gfx::dump(p);
     g_busy = J_PATCH; g_v.total = 1000; g_v.done = 420; g_v.elapsed_s = 312; g_v.eta_s = 431; std::snprintf(g_v.phase, sizeof g_v.phase, "Building RMCPTO");
     draw_main(); std::snprintf(p, sizeof p, "%s/busy.ppm", dir); gfx::dump(p);
+    g_v.total = 0; g_v.done = 312ull << 20; g_v.rate = 8.4 * 1048576; g_v.elapsed_s = 37; std::snprintf(g_v.phase, sizeof g_v.phase, "Downloading");
+    draw_main(); std::snprintf(p, sizeof p, "%s/dl.ppm", dir); gfx::dump(p);
     g_busy = J_NONE; g_v.pack_missing = true; g_v.access_ok = false; g_v.base_ok = false; g_v.result[0] = 0; g_v.region = 0; g_sel = I_FULL;
     std::snprintf(g_v.installed, sizeof g_v.installed, "not installed");
     std::snprintf(g_v.base_line, sizeof g_v.base_line, "no game image found in base folder");

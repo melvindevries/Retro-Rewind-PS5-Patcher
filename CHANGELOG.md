@@ -1,7 +1,7 @@
 # Changelog
 
 ## 01.000.004
-- New: the progress bar shows the estimated time left and the time elapsed while extracting an update, building the disc image and verifying it. The estimate appears after a few seconds, once there is enough progress to base it on, and is smoothed so it does not jump around.
+- New: the progress bar shows the estimated time left and the time elapsed while downloading, extracting an update, building the disc image and verifying it. When a download does not report its total size, the screen shows the amount downloaded and the speed instead of a percentage. The estimate appears after a few seconds, once there is enough progress to base it on, and is smoothed so it does not jump around.
 - Fix: after an update and a new patch, the game could show up twice (two files named like `RMCPTO.wbfs` in `/data/porpoise/games`, one old and one new). The finished image is now put in place by first removing every older file with that name (and any duplicate entries) and then moving the new, verified image into place. This applies to all regions. If the move ever fails, the finished image is kept as `<name>.wbfs.part` instead of being deleted.
 - A warning appears in the log if the console still lists the file more than once.
 

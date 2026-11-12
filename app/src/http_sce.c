@@ -160,7 +160,7 @@ static int one_request(rr_ctx *c, const char *url, const char *dest_path, uint8_
             memcpy(acc + acc_len, buf, (size_t)got);
         }
         acc_len += (size_t)got; got_total += (uint64_t)got;
-        rr_progress(c, "download", got_total, total);
+        rr_progress(c, "Downloading", got_total, total);
       }
       *mem_len = (size_t)got_total;
       if (!dest_path) { if (!acc) acc = (uint8_t *)calloc(1, 1); else acc[acc_len] = 0; *mem = acc; acc = NULL; }
