@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "app.h"
 #include "elevate.h"
+#include <ctime>
 #include "gfx.h"
 #include "http_sce.h"
 #include "logo_data.h"
@@ -53,6 +54,7 @@ struct View
     char phase[64] = "", result[300] = "";
     bool result_is_error = false;
     std::uint64_t done = 0, total = 0;
+    double elapsed_s = 0, eta_s = -1; // time spent in this phase / smoothed estimate of the time left (-1 = not known yet)
     int pending = -1;
     char region = 0; // 'E','P','J' or 0 = not chosen
     bool base_ok = false;
@@ -95,14 +97,49 @@ void add_log(int level, const char *msg)
 
 void log_cb(void *, int level, const char *msg) { add_log(level, msg); }
 
+double now_s()
+{
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+// Per phase: remember when it started and how far it was, then estimate the time left from the average speed so far.
+// The estimate is smoothed so the number does not jump around, and it is only shown once there is enough to go on.
+double g_ph_t0 = 0, g_ph_done0 = 0;
+char g_ph_name[64] = "";
+
 void progress_cb(void *, const char *phase, std::uint64_t done, std::uint64_t total)
 {
     pthread_mutex_lock(&g_mu);
+    const double t = now_s();
+    if (std::strcmp(g_ph_name, phase) != 0 || (double)done < g_ph_done0 || !total)
+    {
+        std::snprintf(g_ph_name, sizeof g_ph_name, "%s", phase);
+        g_ph_t0 = t;
+        g_ph_done0 = (double)done;
+        g_v.eta_s = -1;
+    }
     std::snprintf(g_v.phase, sizeof g_v.phase, "%s", phase);
     g_v.done = done;
     g_v.total = total;
+    g_v.elapsed_s = t - g_ph_t0;
+    const double moved = (double)done - g_ph_done0;
+    if (total && g_v.elapsed_s >= 6.0 && moved >= 0.01 * (double)total && done <= total)
+    {
+        const double est = g_v.elapsed_s * ((double)total - (double)done) / moved;
+        g_v.eta_s = g_v.eta_s < 0 ? est : g_v.eta_s * 0.8 + est * 0.2;
+    }
     pthread_mutex_unlock(&g_mu);
     g_dirty = 1;
+}
+
+void fmt_duration(double sec, char *out, size_t cap)
+{
+    const long s = (long)(sec + 0.5);
+    if (s < 60) std::snprintf(out, cap, "%lds", s < 5 ? 5L : (s + 2) / 5 * 5);
+    else if (s < 3600) std::snprintf(out, cap, "%ld min", (s + 30) / 60);
+    else std::snprintf(out, cap, "%ldh %02ldmin", s / 3600, (s % 3600 + 30) / 60);
 }
 
 void set_result(bool err, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
@@ -347,6 +384,9 @@ void *worker(void *arg)
     pthread_mutex_lock(&g_mu);
     g_v.phase[0] = 0;
     g_v.done = g_v.total = 0;
+    g_v.eta_s = -1;
+    g_v.elapsed_s = 0;
+    g_ph_name[0] = 0;
     pthread_mutex_unlock(&g_mu);
     g_busy = J_NONE;
     g_dirty = 1;
@@ -675,6 +715,18 @@ void draw_main()
         if (v.total) std::snprintf(buf, sizeof buf, "%s  %d%%", v.phase[0] ? v.phase : "working", pct);
         else std::snprintf(buf, sizeof buf, "%s ...", v.phase[0] ? v.phase : "working");
         gfx::text(90, 772, buf, 2, C_ACC);
+        if (v.total)
+        {
+            char tl[96], d[32], e[32];
+            fmt_duration(v.elapsed_s < 1 ? 1 : v.elapsed_s, e, sizeof e);
+            if (v.eta_s >= 0)
+            {
+                fmt_duration(v.eta_s, d, sizeof d);
+                std::snprintf(tl, sizeof tl, "about %s left   (%s elapsed)", d, e);
+            }
+            else std::snprintf(tl, sizeof tl, "estimating time left ...   (%s elapsed)", e);
+            gfx::text(1830 - gfx::text_w(tl, 1) , 782, tl, 1, C_TXT);
+        }
         const int bx = 90, by = 822, bw = 1740, bh = 36;
         gfx::rrect(bx, by, bw, bh, 18, rgb(12, 10, 28), 255);
         int fw = v.total ? (int)((long long)(bw - 8) * (v.done > v.total ? v.total : v.done) / v.total) : 230;
@@ -919,7 +971,7 @@ void ui_preview(const char *dir)
     for (int i = 0; i < 6; ++i) add_log(i == 4 ? RR_LOG_WARN : RR_LOG_INFO, i == 4 ? "an optional file is missing" : "Reading base image");
     g_sel = I_PATCH;
     draw_main(); std::snprintf(p, sizeof p, "%s/main.ppm", dir); gfx::dump(p);
-    g_busy = J_PATCH; g_v.total = 1000; g_v.done = 420; std::snprintf(g_v.phase, sizeof g_v.phase, "Building RMCPTO");
+    g_busy = J_PATCH; g_v.total = 1000; g_v.done = 420; g_v.elapsed_s = 312; g_v.eta_s = 431; std::snprintf(g_v.phase, sizeof g_v.phase, "Building RMCPTO");
     draw_main(); std::snprintf(p, sizeof p, "%s/busy.ppm", dir); gfx::dump(p);
     g_busy = J_NONE; g_v.pack_missing = true; g_v.access_ok = false; g_v.base_ok = false; g_v.result[0] = 0; g_v.region = 0; g_sel = I_FULL;
     std::snprintf(g_v.installed, sizeof g_v.installed, "not installed");
